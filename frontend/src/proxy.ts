@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE } from "@constants";
 
-const PUBLIC_ROUTES = ["/", "/login"];
+const PUBLIC_ROUTES = ["/", "/login", "/404"];
 
 export function proxy(req: NextRequest) {
   const hasSession = req.cookies.has(SESSION_COOKIE);
