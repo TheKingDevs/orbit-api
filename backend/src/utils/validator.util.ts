@@ -10,7 +10,7 @@ export class ValidatorUtil {
   static validateDownloadPayload(body: any): DownloadRequestDTO {
     const result = DownloadSchema.safeParse(body);
     if (!result.success) {
-      const formattedErrors = result.error.errors.map(err => ({
+      const formattedErrors = result.error.issues.map(err => ({
         field: err.path.join('.'),
         message: err.message
       }));
@@ -22,7 +22,7 @@ export class ValidatorUtil {
   static validateCanvasPayload(query: any): CanvasDTO {
     const result = CanvasSchema.safeParse(query);
     if (!result.success) {
-      const formattedErrors = result.error.errors.map(err => ({
+      const formattedErrors = result.error.issues.map(err => ({
         field: err.path.join('.'),
         message: err.message
       }));
@@ -34,7 +34,7 @@ export class ValidatorUtil {
   static validateTtpPayload(query: any): TtpDTO {
     const result = TtpSchema.safeParse(query);
     if (!result.success) {
-      const formattedErrors = result.error.errors.map(err => ({
+      const formattedErrors = result.error.issues.map(err => ({
         field: err.path.join('.'),
         message: err.message
       }));
@@ -46,7 +46,7 @@ export class ValidatorUtil {
   static validateTranscribePayload(payload: any): TranscribeDTO {
     const result = TranscribeSchema.safeParse(payload);
     if (!result.success) {
-      const formattedErrors = result.error.errors.map(err => ({
+      const formattedErrors = result.error.issues.map(err => ({
         field: err.path.join('.'),
         message: err.message
       }));
@@ -58,7 +58,7 @@ export class ValidatorUtil {
   static validateStickerPayload(payload: any): StickerDTO {
     const result = StickerSchema.safeParse(payload);
     if (!result.success) {
-      const formattedErrors = result.error.errors.map(err => ({
+      const formattedErrors = result.error.issues.map(err => ({
         field: err.path.join('.'),
         message: err.message
       }));
@@ -70,7 +70,7 @@ export class ValidatorUtil {
   static validateUserCreation(body: any): CreateUserDTO {
     const result = CreateUserSchema.safeParse(body);
     if (!result.success) {
-      const formattedErrors = result.error.errors.map(err => ({
+      const formattedErrors = result.error.issues.map(err => ({
         field: err.path.join('.'),
         message: err.message
       }));
