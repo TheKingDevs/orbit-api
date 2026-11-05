@@ -4,6 +4,7 @@ import { ForbiddenError, UnauthorizedError } from '@errors/index';
 import { parseCookies } from '@utils/cookies.util';
 import { CSRF_COOKIE, SESSION_COOKIE, sessionManager } from '@services/session.service';
 import { markAuthenticatedRequest } from '@services/requestTrace.service';
+import { normalizeBaseUrl } from '@utils/url.util';
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const PREVIEW_QUERY = 'docs';
@@ -26,18 +27,12 @@ function getPreviewState(req: Request): { requested: boolean; allowed: boolean }
   };
 }
 
-function normalizeOrigin(value: string | null | undefined): string | null {
-  if (!value) return null;
-  return value.replace(/\/+$/, '');
-}
-
 function assertTrustedOrigin(req: Request): void {
-  const origin = normalizeOrigin(req.headers.get('origin'));
+  const origin = normalizeBaseUrl(req.headers.get('origin'));
   if (!origin) return;
 
   const allowed = new Set(
-    [process.env.FRONTEND_URL, process.env.BACKEND_URL]
-      .map(normalizeOrigin)
+    [normalizeBaseUrl(process.env.FRONTEND_URL), normalizeBaseUrl(process.env.BACKEND_URL)]
       .filter((value): value is string => Boolean(value))
   );
 

@@ -18,3 +18,7 @@ services:
         value: info
       - key: PUBLIC_BASE_URL
         value: https://0rbit-api.vercel.app
+      - key: FRONTEND_URL
+        value: https://0rbit-api.vercel.app
+      - key: CORS_ORIGIN
+        value: https://0rbit-api.vercel.app

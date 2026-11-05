@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { normalizeBaseUrl } from '@utils/url.util';
 
 const GOOGLE_AUTHORIZATION_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
@@ -40,8 +41,8 @@ function randomToken(): string {
 function requireGoogleConfig(): { clientId: string; clientSecret: string; redirectUri: string } {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const frontendUrl = (process.env.FRONTEND_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI ?? `${frontendUrl}/api/auth/google/callback`;
+  const frontendUrl = normalizeBaseUrl(process.env.FRONTEND_URL) ?? 'http://localhost:3001';
+  const redirectUri = normalizeBaseUrl(process.env.GOOGLE_REDIRECT_URI) ?? `${frontendUrl}/api/auth/google/callback`;
 
   if (!clientId || !clientSecret) {
     throw new OAuthError('oauth_not_configured', 'OAuth do Google não configurado.');
@@ -51,7 +52,7 @@ function requireGoogleConfig(): { clientId: string; clientSecret: string; redire
 }
 
 export function getFrontendUrl(path = ''): string {
-  const base = (process.env.FRONTEND_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+  const base = normalizeBaseUrl(process.env.FRONTEND_URL) ?? 'http://localhost:3001';
   return `${base}${path}`;
 }
 
