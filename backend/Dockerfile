@@ -18,10 +18,11 @@ RUN mkdir -p models/whisper-tiny && \
 ENV NODE_ENV=production
 ENV WHISPER_MODEL_DIR=/app/models/whisper-tiny
 
-COPY package.json package-lock.json ./
-RUN bun install --production
+COPY package.json bun.lock ./
+RUN bun install --production --frozen-lockfile
 
-COPY tsconfig.json ./
+COPY tsconfig.json build.config.json ./
+COPY scripts ./scripts
 COPY src ./src
 COPY assets ./assets
 

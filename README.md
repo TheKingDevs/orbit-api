@@ -223,12 +223,13 @@ npm run build
 
 ### Backend — Render
 
-- Root Directory: `backend`.
+- Runtime: Docker.
 - Blueprint: `backend/render.yaml`.
-- Build Command: `bun install && bun run build`.
-- Start Command: `bun run dist/index.js`.
+- Dockerfile: `backend/Dockerfile` (contexto `backend`).
+- A imagem já instala `ffmpeg`, `yt-dlp`, fontes e os modelos Whisper usados pela transcrição.
 - Configure as variáveis de ambiente no painel do Render, principalmente `PUBLIC_BASE_URL`, `CORS_ORIGIN` e as credenciais OAuth.
-- Use build filter para `backend/**`, evitando redeploys causados por mudanças no frontend.
+- O build filter usa `backend/**`, evitando redeploys causados por mudanças no frontend.
+- Se configurar manualmente pelo painel, use Dockerfile Path `backend/Dockerfile` e Docker Context `backend`.
 
 ### Frontend — Vercel
 

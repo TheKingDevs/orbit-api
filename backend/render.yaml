@@ -1,11 +1,14 @@
 services:
   - type: web
     name: orbit-backend
-    runtime: node
+    runtime: docker
     plan: free
-    buildCommand: bun install && bun run build
-    startCommand: bun run dist/index.js
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
     autoDeploy: true
+    buildFilter:
+      paths:
+        - backend/**
     envVars:
       - key: PORT
         value: 10000
