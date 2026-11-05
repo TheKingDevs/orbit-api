@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: orbit-backend
+    runtime: node
+    plan: free
+    buildCommand: bun install && bun run build
+    startCommand: bun run dist/index.js
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: PUBLIC_BASE_URL
+        value: https://0rbit-api.vercel.app

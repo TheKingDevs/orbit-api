@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-enter {
+  animation: page-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes login-aurora-a {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: translate3d(-4%, -2%, 0) scale(1);
+  }
+
+  50% {
+    opacity: 0.75;
+    transform: translate3d(5%, 4%, 0) scale(1.12);
+  }
+}
+
+@keyframes login-aurora-b {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: translate3d(3%, 2%, 0) scale(1.08);
+  }
+
+  50% {
+    opacity: 0.65;
+    transform: translate3d(-4%, -3%, 0) scale(0.94);
+  }
+}
+
+@keyframes login-card-glow-a {
+  0%,
+  100% {
+    opacity: 0.28;
+    transform: translate3d(-2%, 2%, 0) scale(0.96);
+  }
+
+  50% {
+    opacity: 0.6;
+    transform: translate3d(2%, -2%, 0) scale(1.04);
+  }
+}
+
+@keyframes login-card-glow-b {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: translate3d(2%, -1%, 0) scale(1.04);
+  }
+
+  50% {
+    opacity: 0.2;
+    transform: translate3d(-3%, 3%, 0) scale(0.98);
+  }
+}
+
+.login-aurora {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.login-aurora-a {
+  animation: login-aurora-a 24s ease-in-out infinite;
+}
+
+.login-aurora-b {
+  animation: login-aurora-b 30s ease-in-out infinite;
+}
+
+.login-card-glow {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(52px);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.login-card-glow-a {
+  animation: login-card-glow-a 18s ease-in-out infinite;
+}
+
+.login-card-glow-b {
+  animation: login-card-glow-b 22s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter,
+  .login-aurora-a,
+  .login-aurora-b,
+  .login-card-glow-a,
+  .login-card-glow-b {
+    animation: none;
+  }
+}

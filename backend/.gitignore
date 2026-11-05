@@ -1,0 +1,17 @@
+# dependencies
+node_modules/
+
+# build outputs
+dist/
+
+# env files
+.env
+.env.*
+!.env.example
+
+# runtime storage
+storage/*
+!storage/.gitkeep
+
+# logs
+*.log

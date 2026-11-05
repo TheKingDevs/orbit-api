@@ -1,6 +1,0 @@
-[submodule "backend"]
-	path = backend
-	url = /data/data/com.termux/files/home/downloads/orbit/backend
-[submodule "frontend"]
-	path = frontend
-	url = /data/data/com.termux/files/home/downloads/orbit/frontend
