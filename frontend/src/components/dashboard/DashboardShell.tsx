@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import Sidebar from "@components/dashboard/Sidebar";
 import { Icon } from "@components/dashboard/icons";
+import ThemeToggle from "@components/theme/ThemeToggle";
 
 export default function DashboardShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -25,11 +26,11 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   }, [sidebarOpen]);
 
   return (
-    <div className="min-h-screen bg-[#0b0b0d] text-white">
+    <div className="min-h-screen bg-transparent text-white">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="lg:pl-[280px]">
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/[0.06] bg-[#0b0b0d]/90 px-4 backdrop-blur lg:hidden">
+        <header className="dashboard-mobile-header sticky top-0 z-30 flex h-16 items-center gap-3 border-b px-4 lg:hidden">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
@@ -39,9 +40,10 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
             <Icon name="menu" className="h-5 w-5" />
           </button>
           <span className="text-base font-semibold tracking-tight">Orbit API</span>
+          <ThemeToggle className="ml-auto" />
         </header>
 
-        <main className="mx-auto w-full max-w-[900px] px-4 py-6 sm:px-6 lg:py-10">
+        <main className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
           <div key={pathname} className="page-enter">
             {children}
           </div>

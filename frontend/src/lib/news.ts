@@ -18,14 +18,16 @@ export const NEWS: NewsEntry[] = [
     version: APP_VERSION,
     title: "Navegação, novidades e nova home",
     summary:
-      "Atualização focada em organização e experiência de uso da plataforma, sem alteração no custo das requisições.",
+      "Atualização focada em organização, apresentação e experiência de uso da plataforma, sem alteração no custo das requisições.",
     items: [
-      "Menu lateral reorganizado para deixar as ferramentas mais fáceis de encontrar.",
-      "Nova página de novidades com o histórico de atualizações da plataforma.",
-      "Homepage renovada com recursos, benefícios, passo a passo e perguntas frequentes.",
-      "Prévias da documentação agora têm limite diário próprio e não consomem requisições.",
-      "Copiar a API Key ficou mais simples, mesmo quando a chave está oculta.",
-      "Identidade visual atualizada com a logo oficial da Orbit."
+      "Menu lateral reorganizado: TTP e ATTP agora ficam exclusivamente em Stickers; Canvas mantém Bem-vindo, Adeus e Efeitos.",
+      "Seção Outros com opções reduzidas e renomeadas para evitar repetições desnecessárias.",
+      "Nova página de novidades com linha do tempo de todas as implementações da Orbit API.",
+      "Homepage reformulada com apresentação dos recursos, benefícios, passo a passo e perguntas frequentes.",
+      "Prévias da documentação não consomem mais requests, com limite diário próprio para evitar abusos.",
+      "API Key pode ser copiada mesmo oculta e o scroll fica bloqueado quando o menu mobile está aberto.",
+      "A versão exibida em Novidades agora é lida diretamente do package.json, mantendo tudo sincronizado.",
+      "Header e identidade visual ajustados com a logo oficial da Orbit."
     ],
     link: {
       label: "Ver documentação",
@@ -39,10 +41,10 @@ export const NEWS: NewsEntry[] = [
     summary:
       "Os stickers Brat e Abrat agora podem ser personalizados e testados diretamente na documentação.",
     items: [
-      "Personalize texto, cores e alinhamento dos stickers Brat e Abrat.",
-      "Prévia atualizada automaticamente conforme as opções escolhidas.",
-      "Exemplos de uso sincronizados com o playground.",
-      "Melhorias na geração de GIFs animados no Android."
+      "Editor de texto, cor de fundo, cor do texto e alinhamento para Brat e Abrat.",
+      "Prévia quadrada em 512x512 com atualização automática do resultado.",
+      "Exemplos de requisição sincronizados com as opções escolhidas no playground.",
+      "Correção do diretório temporário no Android para a geração de GIFs animados."
     ],
     link: {
       label: "Testar Brat",
@@ -56,10 +58,10 @@ export const NEWS: NewsEntry[] = [
     summary:
       "Todas as rotas ganharam uma página própria com parâmetros, exemplos e pré-visualização ao vivo.",
     items: [
-      "Documentação completa para cada recurso, com parâmetros e exemplos.",
+      "Páginas dinâmicas para cada endpoint com tabela de parâmetros e método HTTP.",
       "Playground dos cartões Bem-vindo e Adeus com avatar, fundo, título e subtítulo.",
-      "Exemplos prontos para copiar, com opção de ocultar ou revelar o token.",
-      "Navegação mais rápida entre as seções da documentação."
+      "Exemplos em JavaScript prontos para copiar, com opção de ocultar ou revelar o token.",
+      "Atalhos diretos do menu para cada documentação e navegação entre seções."
     ],
     link: {
       label: "Abrir documentação",
@@ -74,8 +76,8 @@ export const NEWS: NewsEntry[] = [
       "Uma nova experiência para gerenciar a API Key, acompanhar o plano e navegar pela plataforma.",
     items: [
       "Dashboard com API Key, limite do plano e canal de atualizações.",
-      "Navegação mais moderna e intuitiva, com menu de conta e versão mobile.",
-      "Transições suaves entre páginas e melhorias de acessibilidade.",
+      "Sidebar com grupos expansíveis, rotas ativas e menu de conta animado.",
+      "Transições suaves entre páginas, drawer mobile e melhorias de acessibilidade.",
       "Ícones atualizados, incluindo WhatsApp e YouTube na identidade da Orbit."
     ],
     link: {
@@ -91,7 +93,7 @@ export const NEWS: NewsEntry[] = [
       "A base da plataforma: autenticação, API Keys e os primeiros recursos prontos para bots e automações.",
     items: [
       "Login com Google, sessões seguras e gerenciamento de API Keys.",
-      "Downloads de Instagram, Pinterest, TikTok e YouTube para áudio e vídeo.",
+      "Downloads de Instagram, Pinterest, TikTok e Play para áudio e vídeo.",
       "Canvas com cartões de boas-vindas, despedida e efeitos em imagens.",
       "Stickers TTP, ATTP, Brat e Abrat, transcrição com IA e conversão para GIF.",
       "Planos Free, Basic e Gold com controle de requisições e limites diários."

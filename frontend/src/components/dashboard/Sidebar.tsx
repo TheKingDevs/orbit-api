@@ -8,6 +8,7 @@ import { DOCS, slugHref } from "@lib/docs";
 import { useAuth } from "@lib/auth/AuthProvider";
 import OrbitLogo from "@components/landing/OrbitLogo";
 import { Icon, type IconName } from "@components/dashboard/icons";
+import ThemeToggle from "@components/theme/ThemeToggle";
 
 interface NavLink {
   label: string;
@@ -190,7 +191,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         }`}
       />
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col border-r border-white/[0.07] bg-[#111113] transition-transform duration-300 ease-out lg:translate-x-0 ${
+        className={`app-sidebar fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col border-r transition-transform duration-300 ease-out lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -220,7 +221,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             Dashboard
           </Link>
 
-          <p className="px-3 pb-2 pt-6 text-xs font-semibold text-zinc-500">API&apos;s</p>
+          <p className="px-3 pb-2 pt-6 text-xs font-semibold text-zinc-500">APIs</p>
           <ul className="space-y-0.5">
             {API_ITEMS.map((item) => (item.children ? renderGroup(item) : renderDirectLink(item)))}
           </ul>
@@ -232,6 +233,10 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         </nav>
 
         <div className="shrink-0 border-t border-white/[0.07] p-3">
+          <div className="mb-3 flex items-center justify-between px-1">
+            <span className="text-xs font-medium text-zinc-500">Aparência</span>
+            <ThemeToggle />
+          </div>
           <div
             className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
               accountOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"

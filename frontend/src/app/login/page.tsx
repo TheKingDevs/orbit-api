@@ -5,6 +5,7 @@ import { Suspense, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import OrbitLogo from "@components/landing/OrbitLogo";
+import ThemeToggle from "@components/theme/ThemeToggle";
 import { useAuth } from "@lib/auth/AuthProvider";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -41,42 +42,13 @@ function LoginContent() {
   }, [errorCode]);
 
   return (
-    <main className="fixed inset-0 z-50 h-dvh w-full overflow-hidden bg-[#0a0a0c] text-white">
+    <main className="fixed inset-0 z-50 h-dvh w-full overflow-hidden bg-transparent text-white">
+      <div className="pointer-events-none absolute inset-0 login-scrim" />
+      <div className="absolute right-4 top-4 z-30">
+        <ThemeToggle />
+      </div>
 
-      {/* BACKGROUND */}
       <div className="absolute inset-0 overflow-hidden lg:right-[480px]">
-        <div
-          className="absolute inset-0"
-          style={{
-            background: `
-              radial-gradient(ellipse at 20% 30%, rgba(167, 139, 250, 0.2), transparent 55%),
-              radial-gradient(ellipse at 80% 80%, rgba(124, 58, 237, 0.18), transparent 50%),
-              linear-gradient(135deg, #12101a 0%, #08080c 100%)
-            `
-          }}
-        />
-        <div
-          aria-hidden="true"
-          className="login-aurora login-aurora-a -left-28 top-[8%] h-96 w-96 bg-violet-400/25"
-        />
-        <div
-          aria-hidden="true"
-          className="login-aurora login-aurora-b -right-24 bottom-[10%] h-[22rem] w-[22rem] bg-violet-600/20"
-        />
-
-        {/* Efeitos visuais */}
-        <div className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px)
-            `,
-            backgroundSize: "48px 48px"
-          }}
-        />
-
-        <div className="absolute -left-32 top-1/4 h-96 w-96 rounded-full border border-violet-400/10" />
-        <div className="absolute -left-20 top-1/4 h-72 w-72 rounded-full border border-violet-500/10" />
 
         {/* Conteúdo visual desktop */}
         <div className="relative z-10 hidden h-full flex-col justify-between p-16 lg:flex">
@@ -119,16 +91,11 @@ function LoginContent() {
         px-6
         lg:w-[480px]
         lg:border-l lg:border-white/5
-        lg:bg-[#0a0a0c]
+        lg:bg-[#0a0a0c]/85
         lg:px-12
       ">
 
         <div className="relative w-full max-w-md">
-          <div aria-hidden="true" className="pointer-events-none absolute -inset-8 lg:hidden">
-            <span className="login-card-glow login-card-glow-a inset-0 bg-violet-400/30" />
-            <span className="login-card-glow login-card-glow-b inset-0 bg-violet-700/25" />
-          </div>
-
           <div className="relative rounded-2xl border border-white/10 bg-[#0a0a0c]/85 p-7 backdrop-blur-xl sm:p-9 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
 
           <div className="mb-8 flex items-center gap-2.5">

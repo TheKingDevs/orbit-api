@@ -4,7 +4,7 @@ import DashboardShell from "@components/dashboard/DashboardShell";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-[#0b0b0d] text-white">
+    <div className="min-h-screen bg-transparent text-white">
       <SessionGate>
         <DashboardShell>{children}</DashboardShell>
       </SessionGate>

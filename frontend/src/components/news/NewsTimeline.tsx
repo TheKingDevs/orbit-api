@@ -5,7 +5,7 @@ import { NEWS } from "@lib/news";
 
 export default function NewsTimeline() {
   return (
-    <div className="mx-auto w-full">
+    <div className="mx-auto w-full max-w-4xl">
       <header>
         <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.07] bg-[#151517] px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
           <Icon name="star" className="h-3.5 w-3.5 text-violet-300" />
@@ -83,7 +83,7 @@ export default function NewsTimeline() {
                 className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 transition hover:text-zinc-200"
               >
                 {entry.link.label}
-                <span aria-hidden="true">→</span>
+                <Icon name="chevron" className="h-3.5 w-3.5" />
               </Link>
             )}
           </li>

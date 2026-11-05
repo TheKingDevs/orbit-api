@@ -262,7 +262,7 @@ function Field({ label, ...props }: FieldProps) {
       <span className="mb-1.5 block text-xs font-medium text-zinc-500">{label}</span>
       <input
         {...props}
-        className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#0c0c0e] px-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-white/20"
+        className="app-control h-11 w-full px-3 text-sm outline-none transition placeholder:text-zinc-600"
       />
     </label>
   );
@@ -383,7 +383,7 @@ export default function ApiDocView({ doc }: { doc: ApiDoc }) {
         <span className="text-zinc-300">{doc.title}</span>
       </nav>
 
-      <section className="rounded-2xl border border-white/[0.07] bg-[#151517] p-5 sm:p-7">
+      <section className="app-panel p-5 sm:p-7">
         <header>
           <h1 className="text-xl font-semibold text-white sm:text-2xl">{doc.title}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">

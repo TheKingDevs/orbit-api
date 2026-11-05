@@ -86,7 +86,7 @@ interface SummaryCardProps {
 
 function SummaryCard({ icon, label, value, detail }: SummaryCardProps) {
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[#151517] p-4">
+    <div className="app-panel p-4">
       <div className="flex items-center gap-2 text-xs font-medium text-zinc-500">
         <Icon name={icon} className="h-4 w-4 text-violet-300" />
         {label}
@@ -105,7 +105,7 @@ function UsageChart({ daily, loading }: { daily: UsageDay[]; loading: boolean })
   const lastDay = daily[daily.length - 1]?.date;
 
   return (
-    <section className="rounded-2xl border border-white/[0.07] bg-[#151517] p-5 sm:p-6">
+    <section className="app-panel p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="flex items-center gap-2 text-[17px] font-semibold text-white">
@@ -133,11 +133,11 @@ function UsageChart({ daily, loading }: { daily: UsageDay[]; loading: boolean })
               <div
                 key={day.date}
                 className="group flex h-full min-w-0 flex-1 flex-col justify-end gap-2"
-                title={`${day.count} ${day.count === 1 ? 'request' : 'requests'} em ${shortDate(day.date)}`}
+                title={`${day.count} ${day.count === 1 ? 'requisição' : 'requisições'} em ${shortDate(day.date)}`}
               >
                 <div className="relative flex w-full flex-1 items-end">
                   <div
-                    className="w-full rounded-t-[4px] bg-gradient-to-t from-violet-500/50 to-violet-300/90 transition-all duration-300 group-hover:from-violet-400 group-hover:to-white"
+                    className="w-full rounded-t-[4px] bg-violet-400/80 transition-colors duration-200 group-hover:bg-violet-500"
                     style={{ height: `${height}%` }}
                   />
                 </div>
@@ -154,7 +154,7 @@ function UsageChart({ daily, loading }: { daily: UsageDay[]; loading: boolean })
         <span>
           {firstDay && lastDay ? `${shortDate(firstDay)} — ${shortDate(lastDay)}` : 'Últimos 14 dias'}
         </span>
-        <span>Pico de {peak} requests em um dia</span>
+        <span>Pico de {peak} requisições em um dia</span>
       </div>
     </section>
   );
@@ -171,7 +171,7 @@ function TopEndpoints({
   const scale = Math.max(1, highest);
 
   return (
-    <section className="rounded-2xl border border-white/[0.07] bg-[#151517] p-5 sm:p-6">
+    <section className="app-panel p-5 sm:p-6">
       <h2 className="flex items-center gap-2 text-[17px] font-semibold text-white">
         <Icon name="bot" className="h-5 w-5 text-violet-300" />
         Endpoints mais usados
@@ -224,7 +224,7 @@ function RequestHistory({
   loading: boolean;
 }) {
   return (
-    <section className="rounded-2xl border border-white/[0.07] bg-[#151517] p-5 sm:p-6">
+    <section className="app-panel p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 text-[17px] font-semibold text-white">
@@ -319,7 +319,7 @@ function AccountContent() {
   const limit = summary?.limit ?? user?.limit ?? null;
   const remaining =
     summary?.remainingRequests ?? (limit === null ? null : Math.max(0, limit - used));
-  const requestsLabel = limit === null ? 'Ilimitado' : `${remaining ?? 0}/${limit}`;
+  const requestsLabel = limit === null ? 'Ilimitado' : `${remaining ?? 0} / ${limit}`;
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || 'Usuário';
   const initial = displayName.slice(0, 1).toUpperCase();
   const daily = data?.usage.daily ?? [];
@@ -345,7 +345,7 @@ function AccountContent() {
           </p>
         </div>
 
-        <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-[#151517] px-4 py-3">
+        <div className="app-panel flex min-w-0 items-center gap-3 px-4 py-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-violet-400/20 bg-violet-400/15 text-sm font-semibold text-violet-200">
             {initial}
           </span>
@@ -378,9 +378,9 @@ function AccountContent() {
         />
         <SummaryCard
           icon="key"
-          label="Requests hoje"
+          label="Restantes hoje"
           value={requestsLabel}
-          detail={limit === null ? 'Sem limite diário' : `${used} usados de ${limit}`}
+          detail={limit === null ? 'Sem limite diário' : `${used} de ${limit} utilizadas`}
         />
         <SummaryCard
           icon="user"
@@ -390,7 +390,7 @@ function AccountContent() {
         />
         <SummaryCard
           icon="chart"
-          label="Total de requests"
+          label="Total de requisições"
           value={loading && !data ? '—' : String(data?.usage.totalRequests ?? 0)}
           detail="Registrados recentemente"
         />
@@ -408,7 +408,7 @@ function AccountContent() {
 
 export default function Me() {
   return (
-    <div className="min-h-screen bg-[#0b0b0d] text-white">
+    <div className="min-h-screen bg-transparent text-white">
       <SessionGate>
         <DashboardShell>
           <AccountContent />

@@ -11,7 +11,7 @@ export default function DashboardPage() {
   const [revealed, setRevealed] = useState(false);
 
   return (
-    <div className="mx-auto w-full max-w-[900px]">
+    <div className="mx-auto w-full max-w-[1240px]">
       <DashboardHome
         apiKey={apiKey}
         keyLoading={loading}

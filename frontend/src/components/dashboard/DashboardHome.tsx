@@ -59,7 +59,7 @@ export default function DashboardHome({
     (requestLimit === null ? null : Math.max(0, requestLimit - usedRequests));
   const label = planLabel(currentPlan);
   const requestsLabel =
-    requestLimit === null ? "Ilimitado" : `${remainingRequests ?? 0}/${requestLimit}`;
+    requestLimit === null ? "Ilimitado" : `${remainingRequests ?? 0} / ${requestLimit}`;
   const usagePercent =
     requestLimit && requestLimit > 0
       ? Math.min(100, Math.round((usedRequests / requestLimit) * 100))
@@ -80,13 +80,19 @@ export default function DashboardHome({
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,280px)_minmax(0,1fr)] lg:items-start">
-      <section className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-[#151517] p-5 sm:p-6">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -right-16 -top-16 h-36 w-36 rounded-full bg-violet-500/10 blur-3xl"
-        />
-        <div className="relative">
+    <div className="space-y-6">
+      <header className="space-y-2">
+        <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+          Dashboard
+        </h1>
+        <p className="max-w-2xl text-sm leading-relaxed text-zinc-400">
+          Gerencie seu acesso à API e acompanhe os dados principais da sua conta.
+        </p>
+      </header>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(260px,320px)_minmax(0,1fr)] lg:items-start">
+      <section className="app-panel p-5 sm:p-6">
+        <div>
           <div className="flex items-center gap-2 text-[13px] font-medium text-violet-300">
             <Icon name="sparkles" className="h-4 w-4" />
             Resumo da conta
@@ -104,13 +110,21 @@ export default function DashboardHome({
 
             <div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-sm text-zinc-400">Requests</dt>
+                <dt className="text-sm text-zinc-400">Restantes hoje</dt>
                 <dd className="text-sm font-semibold text-white">{requestsLabel}</dd>
               </div>
               {requestLimit !== null && requestLimit > 0 ? (
-                <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                <div
+                  role="progressbar"
+                  aria-label="Requisições utilizadas hoje"
+                  aria-valuemin={0}
+                  aria-valuemax={requestLimit}
+                  aria-valuenow={Math.min(usedRequests, requestLimit)}
+                  aria-valuetext={`${Math.min(usedRequests, requestLimit)} de ${requestLimit} requisições utilizadas`}
+                  className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"
+                >
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-violet-500 to-violet-300 transition-[width] duration-500"
+                    className="h-full rounded-full bg-violet-400 transition-[width] duration-500"
                     style={{ width: `${usagePercent}%` }}
                   />
                 </div>
@@ -136,23 +150,23 @@ export default function DashboardHome({
         </div>
       </section>
 
-      <div className="min-w-0 space-y-5">
-        <section className="min-w-0 rounded-2xl border border-white/[0.07] bg-[#151517] p-5 sm:p-6">
+      <div className="space-y-5">
+        <section className="app-panel p-5 sm:p-6">
           <h2 className="text-[17px] font-semibold text-white">API Key</h2>
           <p className="mt-3 text-[15px] leading-relaxed text-zinc-400">
-            Sua API Key será confidencial, não compartilhe-a com ninguém!
+            Use sua chave no header Authorization e mantenha-a em local seguro.
           </p>
 
-          <div className="mt-5 flex min-w-0 items-center gap-3">
+          <div className="mt-5 flex items-center gap-3">
             <button
               type="button"
               onClick={copyToken}
               disabled={!canUseKey}
               title="Copiar API Key"
               aria-label="Copiar API Key"
-              className="flex h-12 min-w-0 flex-1 items-center gap-3 rounded-xl border border-white/[0.08] bg-[#0c0c0e] px-4 text-left transition hover:border-violet-400/30 hover:bg-[#111113] disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex h-12 min-w-0 flex-1 items-center gap-3 rounded-xl border border-[var(--ui-border)] bg-[var(--surface-subtle)] px-4 text-left transition hover:border-violet-400/30 hover:bg-[var(--surface-raised)] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <span className="api-key-scroll min-w-0 flex-1 touch-pan-x overflow-x-auto whitespace-nowrap font-mono text-sm tracking-[0.18em] text-zinc-400">
+              <span className="truncate font-mono text-sm tracking-[0.18em] text-zinc-400">
                 {keyLoading
                   ? "Carregando..."
                   : keyError
@@ -163,8 +177,8 @@ export default function DashboardHome({
               </span>
               <span
                 aria-live="polite"
-                className={`flex shrink-0 items-center gap-1.5 text-[10px] ${
-                  copied ? "text-emerald-400" : "text-zinc-600"
+                className={`ml-auto flex shrink-0 items-center gap-1.5 text-[10px] ${
+                  copied ? "text-emerald-400" : keyError ? "text-red-300" : "text-zinc-600"
                 }`}
               >
                 {copied ? "Copiado!" : <Icon name="copy" className="h-4 w-4" />}
@@ -185,7 +199,7 @@ export default function DashboardHome({
             {label === "Free" ? (
               <Link
                 href="/me"
-                className="flex h-12 w-full items-center justify-center rounded-xl border border-violet-400/20 bg-violet-400/[0.08] text-sm font-semibold text-violet-200 transition hover:border-violet-300/40 hover:bg-violet-400/15 hover:text-white"
+                className="flex min-h-12 w-full items-center justify-center rounded-xl border border-violet-400/20 bg-violet-400/[0.08] px-4 py-3 text-center text-sm font-semibold leading-relaxed text-violet-200 transition hover:border-violet-300/40 hover:bg-violet-400/15 hover:text-white"
               >
                 Assine um plano para aumentar seus limites!
               </Link>
@@ -198,29 +212,38 @@ export default function DashboardHome({
           </div>
         </section>
 
-        <section className="rounded-2xl border border-white/[0.07] bg-[#151517] p-5 sm:p-6">
+        <section className="app-panel p-5 sm:p-6">
           <h2 className="flex items-center gap-2 text-[17px] font-semibold text-white">
             <Icon name="whatsapp" className="h-5 w-5 text-violet-300" />
             Canal de atualizações
           </h2>
           <p className="mt-3 text-[15px] leading-relaxed text-zinc-400">
-            Acompanhe as novidades da Orbit API, incluindo novas funcionalidades, 
-            melhorias, manutenções e possíveis instabilidades nos serviços
+            Acompanhe as novidades da Orbit API: funcionalidades, melhorias,
+            manutenções e possíveis instabilidades nos serviços.
           </p>
 
-          <a
-            href={CHANNEL_URL ?? "#"}
-            target={CHANNEL_URL ? "_blank" : undefined}
-            rel={CHANNEL_URL ? "noreferrer" : undefined}
-            onClick={(event) => {
-              if (!CHANNEL_URL) event.preventDefault();
-            }}
-            className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-violet-400/20 bg-violet-400/[0.08] text-sm font-medium text-violet-200 transition hover:border-violet-300/40 hover:bg-violet-400/15 hover:text-white"
-          >
-            <Icon name="whatsapp" className="h-4 w-4" />
-            Entrar no canal do WhatsApp
-          </a>
+          {CHANNEL_URL ? (
+            <a
+              href={CHANNEL_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-violet-400/20 bg-violet-400/[0.08] text-sm font-medium text-violet-200 transition hover:border-violet-300/40 hover:bg-violet-400/15 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-300"
+            >
+              <Icon name="whatsapp" className="h-4 w-4" />
+              Entrar no canal do WhatsApp
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="mt-6 flex h-12 w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] text-sm font-medium text-zinc-500"
+            >
+              <Icon name="whatsapp" className="h-4 w-4" />
+              Link do canal indisponível
+            </button>
+          )}
         </section>
+      </div>
       </div>
     </div>
   );
