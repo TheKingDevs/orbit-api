@@ -136,14 +136,14 @@ export default function DashboardHome({
         </div>
       </section>
 
-      <div className="space-y-5">
-        <section className="rounded-2xl border border-white/[0.07] bg-[#151517] p-5 sm:p-6">
+      <div className="min-w-0 space-y-5">
+        <section className="min-w-0 rounded-2xl border border-white/[0.07] bg-[#151517] p-5 sm:p-6">
           <h2 className="text-[17px] font-semibold text-white">API Key</h2>
           <p className="mt-3 text-[15px] leading-relaxed text-zinc-400">
             Sua API Key será confidencial, não compartilhe-a com ninguém!
           </p>
 
-          <div className="mt-5 flex items-center gap-3">
+          <div className="mt-5 flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={copyToken}
@@ -152,7 +152,7 @@ export default function DashboardHome({
               aria-label="Copiar API Key"
               className="flex h-12 min-w-0 flex-1 items-center gap-3 rounded-xl border border-white/[0.08] bg-[#0c0c0e] px-4 text-left transition hover:border-violet-400/30 hover:bg-[#111113] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <span className="truncate font-mono text-sm tracking-[0.18em] text-zinc-400">
+              <span className="api-key-scroll min-w-0 flex-1 touch-pan-x overflow-x-auto whitespace-nowrap font-mono text-sm tracking-[0.18em] text-zinc-400">
                 {keyLoading
                   ? "Carregando..."
                   : keyError
@@ -163,7 +163,7 @@ export default function DashboardHome({
               </span>
               <span
                 aria-live="polite"
-                className={`ml-auto flex shrink-0 items-center gap-1.5 text-[10px] ${
+                className={`flex shrink-0 items-center gap-1.5 text-[10px] ${
                   copied ? "text-emerald-400" : "text-zinc-600"
                 }`}
               >

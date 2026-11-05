@@ -41,6 +41,25 @@ body {
   animation: page-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.api-key-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  overscroll-behavior-x: contain;
+}
+
+.api-key-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.api-key-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.api-key-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 9999px;
+}
+
 @keyframes login-aurora-a {
   0%,
   100% {
