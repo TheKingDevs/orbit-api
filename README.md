@@ -138,6 +138,8 @@ Preencha os valores locais. **Nunca versione arquivos `.env`.**
 | `CORS_ORIGIN` | Origem permitida para requisições do frontend. |
 | `PUBLIC_BASE_URL` | URL pública usada na geração de links (produção). |
 | `DOCS_PREVIEW_DAILY_LIMIT` | Limite diário de pré-visualizações da documentação. |
+| `MONGO_URI` | Connection string do MongoDB. Obrigatória em produção. |
+| `MONGO_DB_NAME` | Nome do banco de dados MongoDB (padrão: `orbit`). |
 
 ### Frontend (`frontend/.env`)
 
@@ -227,7 +229,8 @@ npm run build
 - Blueprint: `backend/render.yaml`.
 - Dockerfile: `backend/Dockerfile` (contexto `backend`).
 - A imagem já instala `ffmpeg`, `yt-dlp`, fontes e os modelos Whisper usados pela transcrição.
-- Configure as variáveis de ambiente no painel do Render, principalmente `PUBLIC_BASE_URL`, `CORS_ORIGIN` e as credenciais OAuth.
+- Configure as variáveis de ambiente no painel do Render, principalmente `PUBLIC_BASE_URL`, `CORS_ORIGIN`, `MONGO_URI` e as credenciais OAuth.
+- Usuários, sessões e histórico de uso ficam persistidos no MongoDB configurado por `MONGO_URI`.
 - O build filter usa `backend/**`, evitando redeploys causados por mudanças no frontend.
 - Se configurar manualmente pelo painel, use Dockerfile Path `backend/Dockerfile` e Docker Context `backend`.
 

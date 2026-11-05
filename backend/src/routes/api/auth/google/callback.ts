@@ -53,16 +53,16 @@ function redirectToLoginError(req: Request, code: string): Response {
   );
 }
 
-function resolveUser(profile: {
+async function resolveUser(profile: {
   subject: string;
   email: string;
   name?: string;
   picture?: string;
-}): User {
+}): Promise<User> {
   let user = db.findByGoogleSubject(profile.subject) ?? db.findByEmail(profile.email);
 
   if (!user) {
-    user = db.addUser({
+    user = await db.addUser({
       id: db.generateId(),
       email: profile.email,
       token: db.generateToken(),
@@ -80,6 +80,7 @@ function resolveUser(profile: {
     user.name = profile.name ?? user.name;
     user.picture = profile.picture ?? user.picture;
     user.googleSubject = profile.subject;
+    await db.saveUser(user);
   }
 
   return user;
@@ -112,7 +113,7 @@ export async function googleCallbackRoute(req: Request): Promise<Response> {
   try {
     const idToken = await exchangeCodeForIdToken(code, transaction.codeVerifier);
     const profile = await verifyGoogleIdToken(idToken, transaction.nonce);
-    user = resolveUser(profile);
+    user = await resolveUser(profile);
   } catch (error) {
     if (error instanceof OAuthError) {
       return redirectToLoginError(req, error.code);
@@ -121,7 +122,7 @@ export async function googleCallbackRoute(req: Request): Promise<Response> {
     return redirectToLoginError(req, 'auth_failed');
   }
 
-  const session = sessionManager.create(user.id);
+  const session = await sessionManager.create(user.id);
   const secure = isSecureRequest(req);
   const maxAge = Math.max(0, Math.floor((session.expiresAt - Date.now()) / 1000));
 

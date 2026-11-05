@@ -9,7 +9,7 @@ export async function deleteUserRoute(req: Request, url: URL): Promise<Response>
     return Response.json({ success: false, message: 'ID do usuário não fornecido.' }, { status: 400 });
   }
 
-  const deleted = db.deleteUserById(userIdToDelete);
+  const deleted = await db.deleteUserById(userIdToDelete);
 
   return Response.json({
     success: deleted,

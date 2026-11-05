@@ -17,6 +17,7 @@ export async function updatePlanRoute(req: Request, url: URL): Promise<Response>
   }
 
   user.plan = newPlan;
+  await db.saveUser(user);
 
   return Response.json({
     success: true,

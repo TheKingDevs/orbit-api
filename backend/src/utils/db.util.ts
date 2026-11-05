@@ -1,19 +1,16 @@
 import { randomBytes, randomUUID } from 'node:crypto';
+import type { Collection } from 'mongodb';
 import { User } from '@models/User';
 import { IUserService } from '@interface/IUser';
 import { UnauthorizedError, ForbiddenError } from '@errors/index';
 import { Logger } from '@utils/logger';
 import { sessionManager } from '@services/session.service';
+import { getDatabase } from '@services/mongo.service';
 
 interface RateLimitTracker {
   timestamps: number[];
   tempBlockUntil: number;
   violations: number;
-}
-
-interface DailyUsage {
-  date: string;
-  count: number;
 }
 
 interface RequestRecordInput {
@@ -35,6 +32,66 @@ export interface UsageStats {
   totalRequests: number;
 }
 
+type UserDocument = Omit<User, 'id'> & {
+  _id: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
+interface RequestRecordDocument {
+  _id: string;
+  userId: string;
+  method: string;
+  path: string;
+  status: number;
+  timestamp: Date;
+  durationMs: number;
+}
+
+const REQUEST_RETENTION_SECONDS = 30 * 24 * 60 * 60;
+
+function buildUserFields(user: User): Omit<UserDocument, '_id' | 'createdAt' | 'updatedAt'> {
+  const fields: Omit<UserDocument, '_id' | 'createdAt' | 'updatedAt'> = {
+    email: user.email,
+    token: user.token,
+    plan: user.plan,
+    role: user.role,
+    dailyRequests: user.dailyRequests,
+    lastResetDate: user.lastResetDate,
+    violationCount: user.violationCount ?? 0
+  };
+
+  if (user.name !== undefined) fields.name = user.name;
+  if (user.picture !== undefined) fields.picture = user.picture;
+  if (user.googleSubject !== undefined) fields.googleSubject = user.googleSubject;
+  if (user.isSuspended !== undefined) fields.isSuspended = user.isSuspended;
+  if (user.suspensionReason !== undefined) fields.suspensionReason = user.suspensionReason;
+  if (user.docsPreviewDate !== undefined) fields.docsPreviewDate = user.docsPreviewDate;
+  if (user.docsPreviewCount !== undefined) fields.docsPreviewCount = user.docsPreviewCount;
+
+  return fields;
+}
+
+function fromUserDocument(document: UserDocument): User {
+  return {
+    id: document._id,
+    email: document.email,
+    token: document.token,
+    plan: document.plan,
+    role: document.role,
+    dailyRequests: document.dailyRequests,
+    lastResetDate: document.lastResetDate,
+    violationCount: document.violationCount ?? 0,
+    ...(document.name != null ? { name: document.name } : {}),
+    ...(document.picture != null ? { picture: document.picture } : {}),
+    ...(document.googleSubject != null ? { googleSubject: document.googleSubject } : {}),
+    ...(document.isSuspended != null ? { isSuspended: document.isSuspended } : {}),
+    ...(document.suspensionReason != null ? { suspensionReason: document.suspensionReason } : {}),
+    ...(document.docsPreviewDate != null ? { docsPreviewDate: document.docsPreviewDate } : {}),
+    ...(document.docsPreviewCount != null ? { docsPreviewCount: document.docsPreviewCount } : {})
+  };
+}
+
 function getDocsPreviewDailyLimit(): number {
   const parsed = Number(process.env.DOCS_PREVIEW_DAILY_LIMIT);
 
@@ -46,67 +103,164 @@ class UserDatabase implements IUserService {
   private tokenRateLimits: Map<string, RateLimitTracker> = new Map();
   private fingerprintRateLimits: Map<string, RateLimitTracker> = new Map();
   private bannedFingerprints: Set<string> = new Set();
-  private docsPreviewUsage: Map<string, DailyUsage> = new Map();
   private requestHistory: Map<string, RequestRecord[]> = new Map();
   private requestDailyUsage: Map<string, Map<string, number>> = new Map();
   private requestEndpointUsage: Map<string, Map<string, number>> = new Map();
-  private requestSequence = 0;
+  private usersCollection: Collection<UserDocument> | null = null;
+  private requestCollection: Collection<RequestRecordDocument> | null = null;
 
   constructor() {
-    this.seedDefaultUsers();
+    this.seedDefaultUsersInMemory();
   }
 
-  private seedDefaultUsers() {
+  private getDefaultSeeds(): User[] {
     const isProduction = process.env.NODE_ENV === 'production';
 
-    const seeds = [
+    const seeds: User[] = [
       {
         id: 'usr-owner-01',
         email: 'owner@orbit.com',
         token: process.env.OWNER_API_KEY ?? (isProduction ? '' : 'secret-owner-token'),
-        plan: 'gold' as const,
-        role: 'owner' as const
+        plan: 'gold',
+        role: 'owner',
+        dailyRequests: 0,
+        lastResetDate: this.getTodayDateString(),
+        violationCount: 0
       },
       {
         id: 'usr-admin-01',
         email: 'admin@orbit.com',
         token: process.env.ADMIN_API_KEY ?? (isProduction ? '' : 'secret-admin-token'),
-        plan: 'basic' as const,
-        role: 'admin' as const
+        plan: 'basic',
+        role: 'admin',
+        dailyRequests: 0,
+        lastResetDate: this.getTodayDateString(),
+        violationCount: 0
       },
       {
         id: 'usr-free-01',
         email: 'user@free.com',
         token: process.env.PUBLIC_API_KEY ?? (isProduction ? '' : 'public-token'),
-        plan: 'free' as const,
-        role: 'public' as const
-      }
-    ];
-
-    for (const seed of seeds) {
-      if (!seed.token) continue;
-
-      this.addUser({
-        id: seed.id,
-        email: seed.email,
-        token: seed.token,
-        plan: seed.plan,
-        role: seed.role,
+        plan: 'free',
+        role: 'public',
         dailyRequests: 0,
         lastResetDate: this.getTodayDateString(),
         violationCount: 0
-      });
+      }
+    ];
+
+    return seeds.filter(seed => Boolean(seed.token));
+  }
+
+  private seedDefaultUsersInMemory(): void {
+    for (const seed of this.getDefaultSeeds()) {
+      this.addUserInMemory(seed);
     }
+  }
+
+  private addUserInMemory(user: User): User {
+    user.violationCount = user.violationCount || 0;
+    this.users.set(user.token, user);
+    return user;
+  }
+
+  public async init(): Promise<void> {
+    const mongoDatabase = getDatabase();
+
+    if (!mongoDatabase) {
+      Logger.warning('Persistência MongoDB desativada; usando memória.', 'MongoDB');
+      return;
+    }
+
+    this.usersCollection = mongoDatabase.collection<UserDocument>('users');
+    this.requestCollection = mongoDatabase.collection<RequestRecordDocument>('request_records');
+
+    await Promise.all([
+      this.usersCollection.createIndex({ token: 1 }, { unique: true }),
+      this.usersCollection.createIndex({ email: 1 }),
+      this.usersCollection.createIndex(
+        { googleSubject: 1 },
+        {
+          unique: true,
+          partialFilterExpression: { googleSubject: { $type: 'string' } }
+        }
+      ),
+      this.requestCollection.createIndex({ userId: 1, timestamp: -1 }),
+      this.requestCollection.createIndex(
+        { timestamp: 1 },
+        { expireAfterSeconds: REQUEST_RETENTION_SECONDS }
+      )
+    ]);
+
+    const documents = await this.usersCollection.find({}).toArray();
+
+    this.users.clear();
+
+    for (const document of documents) {
+      const user = fromUserDocument(document);
+      this.users.set(user.token, user);
+    }
+
+    for (const seed of this.getDefaultSeeds()) {
+      if (this.findById(seed.id) || this.findByEmail(seed.email)) continue;
+      await this.addUser(seed);
+    }
+
+    Logger.success(
+      `MongoDB pronto: ${this.users.size} usuário(s) carregado(s).`,
+      'MongoDB'
+    );
+  }
+
+  public async addUser(user: User): Promise<User> {
+    this.addUserInMemory(user);
+
+    try {
+      await this.persistUser(user);
+    } catch (error) {
+      this.users.delete(user.token);
+      throw error;
+    }
+
+    return user;
+  }
+
+  public async saveUser(user: User): Promise<void> {
+    this.users.set(user.token, user);
+    await this.persistUser(user);
+  }
+
+  private async persistUser(user: User): Promise<void> {
+    if (!this.usersCollection) return;
+
+    const now = new Date();
+
+    await this.usersCollection.updateOne(
+      { _id: user.id },
+      {
+        $set: {
+          ...buildUserFields(user),
+          updatedAt: now
+        },
+        $setOnInsert: {
+          createdAt: now
+        }
+      },
+      { upsert: true }
+    );
+  }
+
+  private scheduleUserSave(user: User): void {
+    if (!this.usersCollection) return;
+
+    void this.persistUser(user).catch(error => {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.error(`Falha ao salvar usuário ${user.id}: ${message}`, 'MongoDB');
+    });
   }
 
   private getTodayDateString(): string {
     return new Date().toISOString().split('T')[0];
-  }
-
-  public addUser(user: User): User {
-    user.violationCount = user.violationCount || 0;
-    this.users.set(user.token, user);
-    return user;
   }
 
   public findByToken(token: string): User | undefined {
@@ -137,23 +291,32 @@ class UserDatabase implements IUserService {
     return Array.from(this.users.values());
   }
 
-  public deleteUserById(id: string): boolean {
-    for (const [token, user] of this.users.entries()) {
-      if (user.id === id) {
-        this.users.delete(token);
-        this.requestHistory.delete(id);
-        this.requestDailyUsage.delete(id);
-        this.requestEndpointUsage.delete(id);
-        sessionManager.destroyByUserId(id);
-        return true;
-      }
+  public async deleteUserById(id: string): Promise<boolean> {
+    const user = this.findById(id);
+
+    if (!user) return false;
+
+    if (this.usersCollection) {
+      await this.usersCollection.deleteOne({ _id: id });
     }
-    return false;
+
+    if (this.requestCollection) {
+      await this.requestCollection.deleteMany({ userId: id });
+    }
+
+    await sessionManager.destroyByUserId(id);
+
+    this.users.delete(user.token);
+    this.requestHistory.delete(id);
+    this.requestDailyUsage.delete(id);
+    this.requestEndpointUsage.delete(id);
+
+    return true;
   }
 
   public recordRequest(userId: string, input: RequestRecordInput): void {
     const record: RequestRecord = {
-      id: `req_${Date.now()}_${++this.requestSequence}`,
+      id: `req_${randomUUID()}`,
       ...input
     };
 
@@ -184,11 +347,108 @@ class UserDatabase implements IUserService {
     }
 
     endpoints.set(input.path, (endpoints.get(input.path) ?? 0) + 1);
+
+    if (!this.requestCollection) return;
+
+    void this.requestCollection.insertOne({
+      _id: record.id,
+      userId,
+      method: record.method,
+      path: record.path,
+      status: record.status,
+      timestamp: new Date(record.timestamp),
+      durationMs: record.durationMs
+    }).catch(error => {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.error(`Falha ao salvar histórico de requisições: ${message}`, 'MongoDB');
+    });
   }
 
-  public getUsageStats(userId: string, days: number = 14): UsageStats {
+  public async getUsageStats(userId: string, days: number = 14): Promise<UsageStats> {
     const normalizedDays = Number.isFinite(days) ? Math.floor(days) : 14;
     const safeDays = Math.min(30, Math.max(1, normalizedDays));
+
+    if (this.requestCollection) {
+      try {
+        return await this.getUsageStatsFromMongo(userId, safeDays);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        Logger.error(`Falha ao consultar uso no MongoDB: ${message}`, 'MongoDB');
+      }
+    }
+
+    return this.getUsageStatsFromMemory(userId, safeDays);
+  }
+
+  private async getUsageStatsFromMongo(userId: string, safeDays: number): Promise<UsageStats> {
+    if (!this.requestCollection) {
+      return this.getUsageStatsFromMemory(userId, safeDays);
+    }
+
+    const since = new Date();
+    since.setUTCHours(0, 0, 0, 0);
+    since.setUTCDate(since.getUTCDate() - (safeDays - 1));
+
+    const [dailyRows, recentDocuments, topRows, totalRequests] = await Promise.all([
+      this.requestCollection.aggregate<{ _id: string; count: number }>([
+        { $match: { userId, timestamp: { $gte: since } } },
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                format: '%Y-%m-%d',
+                date: '$timestamp',
+                timezone: 'UTC'
+              }
+            },
+            count: { $sum: 1 }
+          }
+        }
+      ]).toArray(),
+      this.requestCollection
+        .find({ userId })
+        .sort({ timestamp: -1 })
+        .limit(20)
+        .toArray(),
+      this.requestCollection.aggregate<{ _id: string; count: number }>([
+        { $match: { userId } },
+        { $group: { _id: '$path', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 6 }
+      ]).toArray(),
+      this.requestCollection.countDocuments({ userId })
+    ]);
+
+    const dailyCounts = new Map(dailyRows.map(row => [row._id, row.count]));
+    const daily: Array<{ date: string; count: number }> = [];
+    const cursor = new Date();
+    cursor.setUTCHours(0, 0, 0, 0);
+
+    for (let offset = safeDays - 1; offset >= 0; offset--) {
+      const date = new Date(cursor);
+      date.setUTCDate(cursor.getUTCDate() - offset);
+      const key = date.toISOString().split('T')[0];
+      daily.push({ date: key, count: dailyCounts.get(key) ?? 0 });
+    }
+
+    const recent: RequestRecord[] = recentDocuments.map(document => ({
+      id: document._id,
+      method: document.method,
+      path: document.path,
+      status: document.status,
+      timestamp: document.timestamp.getTime(),
+      durationMs: document.durationMs
+    }));
+
+    return {
+      daily,
+      recent,
+      topEndpoints: topRows.map(row => ({ path: row._id, count: row.count })),
+      totalRequests
+    };
+  }
+
+  private getUsageStatsFromMemory(userId: string, safeDays: number): UsageStats {
     const dailyUsage = this.requestDailyUsage.get(userId) ?? new Map<string, number>();
     const daily: Array<{ date: string; count: number }> = [];
     const cursor = new Date();
@@ -226,7 +486,7 @@ class UserDatabase implements IUserService {
     const userAgent = req.headers.get('user-agent') || 'unknown-ua';
     const acceptLang = req.headers.get('accept-language') || 'unknown-lang';
     const acceptEnc = req.headers.get('accept-encoding') || 'unknown-enc';
-    
+
     const rawSignature = `${cfIp}|${xForwarded}|${userAgent}|${acceptLang}|${acceptEnc}`;
     let hash = 0;
     for (let i = 0; i < rawSignature.length; i++) {
@@ -283,6 +543,7 @@ class UserDatabase implements IUserService {
         }
         user.isSuspended = true;
         user.suspensionReason = 'Banido permanentemente por 3 tentativas de ataques DDoS / RateLimit violado.';
+        this.scheduleUserSave(user);
         Logger.error(`Usuário ${user.id} (Fingerprint: ${fingerprint}) SUSPENSO PERMANENTEMENTE após 3 violações de DDoS.`, 'Anti-DDoS');
         throw new ForbiddenError('Acesso revogado permanentemente. Este acesso e seu dispositivo foram banidos por excederem as violações de segurança.');
       }
@@ -292,6 +553,7 @@ class UserDatabase implements IUserService {
       fpTracker.tempBlockUntil = now + blockDurationMs;
 
       user.violationCount = (user.violationCount || 0) + 1;
+      this.scheduleUserSave(user);
 
       Logger.warning(`Atividade suspeita de DDoS detectada! Usuário: ${user.id} | Violação #${tokenTracker.violations}/3. Bloqueado por 5 minutos.`, 'Anti-DDoS');
       throw new ForbiddenError(`Muitas requisições simultâneas detectadas. Atividade marcada como suspeita. Acesso bloqueado por 5 minutos (Infração ${tokenTracker.violations}/3).`);
@@ -322,6 +584,7 @@ class UserDatabase implements IUserService {
     }
 
     user.dailyRequests += 1;
+    this.scheduleUserSave(user);
     return user;
   }
 
@@ -335,18 +598,20 @@ class UserDatabase implements IUserService {
 
     const limit = getDocsPreviewDailyLimit();
     const today = this.getTodayDateString();
-    const usage = this.docsPreviewUsage.get(user.id);
 
-    if (!usage || usage.date !== today) {
-      this.docsPreviewUsage.set(user.id, { date: today, count: 1 });
+    if (user.docsPreviewDate !== today) {
+      user.docsPreviewDate = today;
+      user.docsPreviewCount = 1;
+      this.scheduleUserSave(user);
       return user;
     }
 
-    if (usage.count >= limit) {
+    if ((user.docsPreviewCount ?? 0) >= limit) {
       throw new ForbiddenError(`Limite diário de ${limit} pré-visualizações da documentação atingido. Tente novamente amanhã.`);
     }
 
-    usage.count += 1;
+    user.docsPreviewCount = (user.docsPreviewCount ?? 0) + 1;
+    this.scheduleUserSave(user);
     return user;
   }
 

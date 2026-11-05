@@ -5,7 +5,7 @@ export async function userUsageRoute(req: Request, url: URL): Promise<Response> 
   const user = authMiddleware(req, undefined, false);
   const requestedDays = Number(url.searchParams.get('days') ?? 14);
   const days = Number.isFinite(requestedDays) ? requestedDays : 14;
-  const usage = db.getUsageStats(user.id, days);
+  const usage = await db.getUsageStats(user.id, days);
   const limit = user.plan === 'free' ? 100 : null;
 
   return Response.json({

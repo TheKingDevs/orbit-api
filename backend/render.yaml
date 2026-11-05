@@ -22,3 +22,7 @@ services:
         value: https://0rbit-api.vercel.app
       - key: CORS_ORIGIN
         value: https://0rbit-api.vercel.app
+      - key: MONGO_DB_NAME
+        value: orbit
+      - key: MONGO_URI
+        sync: false

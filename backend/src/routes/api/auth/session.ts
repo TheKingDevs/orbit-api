@@ -93,7 +93,7 @@ export async function authSessionRoute(req: Request): Promise<Response> {
   const responseCookies: string[] = [];
 
   if (sessionManager.needsRotation(authenticated.record)) {
-    const rotated = sessionManager.rotate(sessionId);
+    const rotated = await sessionManager.rotate(sessionId);
 
     if (rotated) {
       responseCookies.push(...sessionCookies(req, rotated.id, rotated.csrfToken, rotated.expiresAt));

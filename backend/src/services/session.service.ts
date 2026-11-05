@@ -1,4 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import type { Collection } from 'mongodb';
+import { getDatabase } from '@services/mongo.service';
+import { Logger } from '@utils/logger';
 
 export const SESSION_COOKIE = 'orbit_session';
 export const CSRF_COOKIE = 'orbit_csrf';
@@ -23,8 +26,14 @@ export interface AuthenticatedSession {
   sessionHash: string;
 }
 
+interface SessionDocument extends SessionRecord {
+  _id: string;
+  expiresAtDate: Date;
+}
+
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
+const SESSION_TOUCH_INTERVAL_MS = 5 * MINUTE;
 
 function envNumber(name: string, fallback: number): number {
   const parsed = Number(process.env[name]);
@@ -45,13 +54,56 @@ function randomToken(): string {
 
 class SessionManager {
   private sessions = new Map<string, SessionRecord>();
+  private lastPersistedAt = new Map<string, number>();
+  private collection: Collection<SessionDocument> | null = null;
 
-  public create(userId: string): CreatedSession {
+  public async init(): Promise<void> {
+    const mongoDatabase = getDatabase();
+
+    if (!mongoDatabase) return;
+
+    this.collection = mongoDatabase.collection<SessionDocument>('sessions');
+
+    await Promise.all([
+      this.collection.createIndex({ expiresAtDate: 1 }, { expireAfterSeconds: 0 }),
+      this.collection.createIndex({ userId: 1 })
+    ]);
+
+    const now = Date.now();
+    const documents = await this.collection.find({ expiresAt: { $gt: now } }).toArray();
+
+    this.sessions.clear();
+    this.lastPersistedAt.clear();
+
+    for (const document of documents) {
+      if (now - document.lastSeenAt >= SESSION_IDLE_MS) {
+        void this.collection.deleteOne({ _id: document._id }).catch(() => undefined);
+        continue;
+      }
+
+      this.sessions.set(document._id, {
+        userId: document.userId,
+        csrfHash: document.csrfHash,
+        createdAt: document.createdAt,
+        lastSeenAt: document.lastSeenAt,
+        expiresAt: document.expiresAt
+      });
+      this.lastPersistedAt.set(document._id, now);
+    }
+
+    Logger.success(
+      `${this.sessions.size} sessão(ões) restaurada(s) do MongoDB.`,
+      'MongoDB'
+    );
+  }
+
+  public async create(userId: string): Promise<CreatedSession> {
     this.cleanup();
 
     const id = randomToken();
     const csrfToken = randomToken();
     const now = Date.now();
+    const sessionHash = sha256(id);
 
     const record: SessionRecord = {
       userId,
@@ -61,7 +113,22 @@ class SessionManager {
       expiresAt: now + SESSION_TTL_MS
     };
 
-    this.sessions.set(sha256(id), record);
+    this.sessions.set(sessionHash, record);
+    this.lastPersistedAt.set(sessionHash, now);
+
+    if (this.collection) {
+      try {
+        await this.collection.insertOne({
+          _id: sessionHash,
+          ...record,
+          expiresAtDate: new Date(record.expiresAt)
+        });
+      } catch (error) {
+        this.sessions.delete(sessionHash);
+        this.lastPersistedAt.delete(sessionHash);
+        throw error;
+      }
+    }
 
     return { id, csrfToken, expiresAt: record.expiresAt };
   }
@@ -75,23 +142,35 @@ class SessionManager {
     const now = Date.now();
 
     if (now >= record.expiresAt || now - record.lastSeenAt >= SESSION_IDLE_MS) {
-      this.sessions.delete(sessionHash);
+      this.destroy(id);
       return null;
     }
 
     record.lastSeenAt = now;
+    this.touch(sessionHash, record);
 
     return { record, sessionHash };
   }
 
-  public rotate(id: string): CreatedSession | null {
+  public async rotate(id: string): Promise<CreatedSession | null> {
     const sessionHash = sha256(id);
     const record = this.sessions.get(sessionHash);
 
     if (!record) return null;
 
+    const created = await this.create(record.userId);
+
     this.sessions.delete(sessionHash);
-    return this.create(record.userId);
+    this.lastPersistedAt.delete(sessionHash);
+
+    if (this.collection) {
+      void this.collection.deleteOne({ _id: sessionHash }).catch(error => {
+        const message = error instanceof Error ? error.message : String(error);
+        Logger.error(`Falha ao remover sessão antiga: ${message}`, 'MongoDB');
+      });
+    }
+
+    return created;
   }
 
   public needsRotation(record: SessionRecord): boolean {
@@ -99,14 +178,28 @@ class SessionManager {
   }
 
   public destroy(id: string): void {
-    this.sessions.delete(sha256(id));
+    const sessionHash = sha256(id);
+    this.sessions.delete(sessionHash);
+    this.lastPersistedAt.delete(sessionHash);
+
+    if (this.collection) {
+      void this.collection.deleteOne({ _id: sessionHash }).catch(error => {
+        const message = error instanceof Error ? error.message : String(error);
+        Logger.error(`Falha ao remover sessão: ${message}`, 'MongoDB');
+      });
+    }
   }
 
-  public destroyByUserId(userId: string): void {
+  public async destroyByUserId(userId: string): Promise<void> {
     for (const [hash, record] of this.sessions.entries()) {
       if (record.userId === userId) {
         this.sessions.delete(hash);
+        this.lastPersistedAt.delete(hash);
       }
+    }
+
+    if (this.collection) {
+      await this.collection.deleteMany({ userId });
     }
   }
 
@@ -125,12 +218,36 @@ class SessionManager {
     return timingSafeEqual(computed, expected);
   }
 
+  private touch(sessionHash: string, record: SessionRecord): void {
+    if (!this.collection) return;
+
+    const now = Date.now();
+    const lastPersisted = this.lastPersistedAt.get(sessionHash) ?? 0;
+
+    if (now - lastPersisted < SESSION_TOUCH_INTERVAL_MS) return;
+
+    this.lastPersistedAt.set(sessionHash, now);
+
+    void this.collection.updateOne(
+      { _id: sessionHash },
+      { $set: { lastSeenAt: record.lastSeenAt } }
+    ).catch(error => {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.error(`Falha ao atualizar sessão: ${message}`, 'MongoDB');
+    });
+  }
+
   private cleanup(): void {
     const now = Date.now();
 
     for (const [hash, record] of this.sessions.entries()) {
       if (now >= record.expiresAt || now - record.lastSeenAt >= SESSION_IDLE_MS) {
         this.sessions.delete(hash);
+        this.lastPersistedAt.delete(hash);
+
+        if (this.collection) {
+          void this.collection.deleteOne({ _id: hash }).catch(() => undefined);
+        }
       }
     }
   }

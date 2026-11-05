@@ -21,7 +21,7 @@ export async function userManagerRoute(req: Request): Promise<Response> {
       violationCount: 0
     };
 
-    db.addUser(newUser);
+    await db.addUser(newUser);
 
     return Response.json({
       success: true,

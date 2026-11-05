@@ -15,4 +15,6 @@ export interface User {
   isSuspended?: boolean;
   suspensionReason?: string;
   violationCount?: number;
+  docsPreviewDate?: string;
+  docsPreviewCount?: number;
 }
