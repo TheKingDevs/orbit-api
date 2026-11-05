@@ -1,0 +1,15 @@
+sequenceDiagram
+    autonumber
+    participant D as Dev
+    participant B as Branch
+    participant PR as Pull Request
+    participant CI as CI
+    participant M as main
+    participant H as Render / Vercel
+
+    D->>B: commit feat(backend) ou fix(frontend)
+    B->>PR: abre PR focado em uma única pasta
+    PR->>CI: lint + testes do app alterado
+    CI-->>PR: checks verdes
+    PR->>M: merge com aprovação do code owner
+    M->>H: deploy apenas do app afetado

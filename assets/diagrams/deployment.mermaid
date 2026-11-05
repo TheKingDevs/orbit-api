@@ -1,0 +1,8 @@
+flowchart LR
+    DEV["Equipe TheKingDevs"] --> GH["GitHub<br/>TheKingDevs/orbit-api"]
+    GH -->|"backend/**"| R["Render<br/>Backend Bun"]
+    GH -->|"frontend/**"| V["Vercel<br/>Frontend Next.js"]
+    V -->|"proxy /api"| R
+    R --> G["Google OAuth"]
+    R --> HF["Hugging Face"]
+    USER([Usuário]) --> V

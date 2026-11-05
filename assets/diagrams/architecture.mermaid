@@ -1,0 +1,26 @@
+flowchart TB
+    USER([Usuário]) --> FE
+
+    subgraph VERCEL["Vercel"]
+        FE["Frontend Next.js<br/>frontend/"]
+        RW["Rewrites<br/>/api · /storage · /preview/ttp"]
+        FE --> RW
+    end
+
+    subgraph RENDER["Render"]
+        BE["Backend Bun<br/>backend/"]
+        AUTH["Google OAuth<br/>sessões e cookies"]
+        DL["Downloads<br/>Instagram · TikTok · Pinterest · YouTube"]
+        ART["Canvas e stickers<br/>@napi-rs/canvas + ffmpeg"]
+        TR["Transcrição<br/>sherpa-onnx Whisper"]
+        ST[("Storage<br/>backend/storage")]
+        BE --> AUTH
+        BE --> DL
+        BE --> ART
+        BE --> TR
+        BE --> ST
+    end
+
+    RW -->|HTTPS| BE
+    DL --> EXT["Plataformas externas"]
+    TR --> HF["Modelos Whisper<br/>Hugging Face"]
