@@ -20,6 +20,7 @@ import {
   redirectWithCookies,
   serializeCookie
 } from '@utils/cookies.util';
+import { hashSensitive } from '@utils/dataCrypto.util';
 
 const STATE_COOKIE_PATH = '/api/auth/google';
 
@@ -73,13 +74,13 @@ async function resolveUser(profile: {
       violationCount: 0,
       name: profile.name,
       picture: profile.picture,
-      googleSubject: profile.subject
+      googleSubjectHash: hashSensitive(profile.subject)
     });
   } else {
     user.email = profile.email;
     user.name = profile.name ?? user.name;
     user.picture = profile.picture ?? user.picture;
-    user.googleSubject = profile.subject;
+    user.googleSubjectHash = hashSensitive(profile.subject);
     await db.saveUser(user);
   }
 

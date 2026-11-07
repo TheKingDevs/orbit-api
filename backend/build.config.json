@@ -1,5 +1,8 @@
 {
   "entrypoints": ["src/index.ts"],
-  "outdir": "dist",
-  "external": ["sherpa-onnx-node", "@napi-rs/canvas", "mongodb"]
+  "outfile": "dist/orbit-backend",
+  "target": "bun",
+  "compile": true,
+  "bytecode": true,
+  "minify": true
 }

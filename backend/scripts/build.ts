@@ -1,28 +1,40 @@
 import { readFileSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, rm } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 
 interface BuildConfig {
   entrypoints: string[];
-  outdir: string;
-  external: string[];
+  outfile: string;
+  target: 'bun';
+  compile: boolean;
+  bytecode: boolean;
+  minify: boolean;
 }
 
 const root = join(import.meta.dir, '..');
 const config = JSON.parse(
   readFileSync(join(root, 'build.config.json'), 'utf8'),
 ) as BuildConfig;
+const outfile = join(root, config.outfile);
 
-await rm(join(root, config.outdir), { recursive: true, force: true });
+await rm(join(root, 'dist'), { recursive: true, force: true });
+await mkdir(dirname(outfile), { recursive: true });
 
-const result = await Bun.build({
-  entrypoints: config.entrypoints.map((entry) => join(root, entry)),
-  outdir: join(root, config.outdir),
-  target: 'bun',
-  external: config.external,
+const args = [process.execPath, 'build'];
+
+if (config.compile) args.push('--compile');
+if (config.bytecode) args.push('--bytecode');
+if (config.minify) args.push('--minify');
+
+args.push(`--target=${config.target}`, `--outfile=${outfile}`, ...config.entrypoints);
+
+const result = Bun.spawnSync({
+  cmd: args,
+  cwd: root,
+  stdout: 'inherit',
+  stderr: 'inherit',
 });
 
-if (!result.success) {
-  for (const log of result.logs) console.error(log);
-  process.exit(1);
+if (result.exitCode !== 0) {
+  process.exit(result.exitCode ?? 1);
 }

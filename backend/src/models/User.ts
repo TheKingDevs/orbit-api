@@ -11,7 +11,7 @@ export interface User {
   lastResetDate: string;
   name?: string;
   picture?: string;
-  googleSubject?: string;
+  googleSubjectHash?: string;
   isSuspended?: boolean;
   suspensionReason?: string;
   violationCount?: number;

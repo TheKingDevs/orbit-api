@@ -6,6 +6,14 @@ import { UnauthorizedError, ForbiddenError } from '@errors/index';
 import { Logger } from '@utils/logger';
 import { sessionManager } from '@services/session.service';
 import { getDatabase } from '@services/mongo.service';
+import {
+  decryptSensitive,
+  encryptSensitive,
+  ensureDataSecurityConfigured,
+  hashEmail,
+  hashSensitive,
+  normalizeEmail
+} from '@utils/dataCrypto.util';
 
 interface RateLimitTracker {
   timestamps: number[];
@@ -32,11 +40,57 @@ export interface UsageStats {
   totalRequests: number;
 }
 
-type UserDocument = Omit<User, 'id'> & {
+interface UserDocument {
   _id: string;
+  plan: User['plan'];
+  role: User['role'];
+  dailyRequests: number;
+  lastResetDate: string;
+  violationCount: number;
+  tokenHash?: string;
+  tokenEnc?: string;
+  emailHash?: string;
+  emailEnc?: string;
+  nameEnc?: string;
+  pictureEnc?: string;
+  googleSubjectHash?: string;
+  isSuspended?: boolean;
+  suspensionReasonEnc?: string;
+  docsPreviewDate?: string;
+  docsPreviewCount?: number;
   createdAt?: Date;
   updatedAt?: Date;
-};
+  token?: string;
+  email?: string;
+  name?: string;
+  picture?: string;
+  googleSubject?: string;
+  suspensionReason?: string;
+}
+
+interface PersistedUserFields {
+  tokenHash: string;
+  tokenEnc: string;
+  emailHash: string;
+  emailEnc: string;
+  plan: User['plan'];
+  role: User['role'];
+  dailyRequests: number;
+  lastResetDate: string;
+  violationCount: number;
+  nameEnc?: string;
+  pictureEnc?: string;
+  googleSubjectHash?: string;
+  isSuspended?: boolean;
+  suspensionReasonEnc?: string;
+  docsPreviewDate?: string;
+  docsPreviewCount?: number;
+}
+
+type MutableUserFields = Omit<
+  PersistedUserFields,
+  'tokenHash' | 'tokenEnc' | 'emailHash' | 'emailEnc' | 'nameEnc' | 'pictureEnc' | 'googleSubjectHash'
+>;
 
 interface RequestRecordDocument {
   _id: string;
@@ -50,10 +104,17 @@ interface RequestRecordDocument {
 
 const REQUEST_RETENTION_SECONDS = 30 * 24 * 60 * 60;
 
-function buildUserFields(user: User): Omit<UserDocument, '_id' | 'createdAt' | 'updatedAt'> {
-  const fields: Omit<UserDocument, '_id' | 'createdAt' | 'updatedAt'> = {
-    email: user.email,
-    token: user.token,
+const LEGACY_USER_FIELDS = {
+  token: '',
+  email: '',
+  name: '',
+  picture: '',
+  googleSubject: '',
+  suspensionReason: ''
+} as const;
+
+function buildMutableFields(user: User): MutableUserFields {
+  const fields: MutableUserFields = {
     plan: user.plan,
     role: user.role,
     dailyRequests: user.dailyRequests,
@@ -61,35 +122,93 @@ function buildUserFields(user: User): Omit<UserDocument, '_id' | 'createdAt' | '
     violationCount: user.violationCount ?? 0
   };
 
-  if (user.name !== undefined) fields.name = user.name;
-  if (user.picture !== undefined) fields.picture = user.picture;
-  if (user.googleSubject !== undefined) fields.googleSubject = user.googleSubject;
   if (user.isSuspended !== undefined) fields.isSuspended = user.isSuspended;
-  if (user.suspensionReason !== undefined) fields.suspensionReason = user.suspensionReason;
+  if (user.suspensionReason !== undefined) {
+    fields.suspensionReasonEnc = encryptSensitive(user.suspensionReason);
+  }
   if (user.docsPreviewDate !== undefined) fields.docsPreviewDate = user.docsPreviewDate;
   if (user.docsPreviewCount !== undefined) fields.docsPreviewCount = user.docsPreviewCount;
 
   return fields;
 }
 
+function buildUserFields(user: User): PersistedUserFields {
+  return {
+    ...buildMutableFields(user),
+    tokenHash: hashSensitive(user.token),
+    tokenEnc: encryptSensitive(user.token),
+    emailHash: hashEmail(user.email),
+    emailEnc: encryptSensitive(user.email),
+    ...(user.name !== undefined ? { nameEnc: encryptSensitive(user.name) } : {}),
+    ...(user.picture !== undefined ? { pictureEnc: encryptSensitive(user.picture) } : {}),
+    ...(user.googleSubjectHash !== undefined
+      ? { googleSubjectHash: user.googleSubjectHash }
+      : {})
+  };
+}
+
 function fromUserDocument(document: UserDocument): User {
+  const token = document.tokenEnc
+    ? decryptSensitive(document.tokenEnc)
+    : document.token;
+  const email = document.emailEnc
+    ? decryptSensitive(document.emailEnc)
+    : document.email;
+
+  if (!token) {
+    throw new Error(`Token ausente no usuário ${document._id}.`);
+  }
+
+  if (!email) {
+    throw new Error(`E-mail ausente no usuário ${document._id}.`);
+  }
+
   return {
     id: document._id,
-    email: document.email,
-    token: document.token,
+    email,
+    token,
     plan: document.plan,
     role: document.role,
     dailyRequests: document.dailyRequests,
     lastResetDate: document.lastResetDate,
     violationCount: document.violationCount ?? 0,
-    ...(document.name != null ? { name: document.name } : {}),
-    ...(document.picture != null ? { picture: document.picture } : {}),
-    ...(document.googleSubject != null ? { googleSubject: document.googleSubject } : {}),
+    ...(document.nameEnc
+      ? { name: decryptSensitive(document.nameEnc) }
+      : document.name != null
+        ? { name: document.name }
+        : {}),
+    ...(document.pictureEnc
+      ? { picture: decryptSensitive(document.pictureEnc) }
+      : document.picture != null
+        ? { picture: document.picture }
+        : {}),
+    ...(document.googleSubjectHash
+      ? { googleSubjectHash: document.googleSubjectHash }
+      : document.googleSubject
+        ? { googleSubjectHash: hashSensitive(document.googleSubject) }
+        : {}),
     ...(document.isSuspended != null ? { isSuspended: document.isSuspended } : {}),
-    ...(document.suspensionReason != null ? { suspensionReason: document.suspensionReason } : {}),
+    ...(document.suspensionReasonEnc
+      ? { suspensionReason: decryptSensitive(document.suspensionReasonEnc) }
+      : document.suspensionReason != null
+        ? { suspensionReason: document.suspensionReason }
+        : {}),
     ...(document.docsPreviewDate != null ? { docsPreviewDate: document.docsPreviewDate } : {}),
     ...(document.docsPreviewCount != null ? { docsPreviewCount: document.docsPreviewCount } : {})
   };
+}
+
+function needsUserMigration(document: UserDocument): boolean {
+  const hasLegacyField = (Object.keys(LEGACY_USER_FIELDS) as Array<keyof typeof LEGACY_USER_FIELDS>)
+    .some(key => document[key] !== undefined);
+
+  return (
+    hasLegacyField ||
+    !document.tokenHash ||
+    !document.tokenEnc ||
+    !document.emailHash ||
+    !document.emailEnc
+  );
 }
 
 function getDocsPreviewDailyLimit(): number {
@@ -172,25 +291,12 @@ class UserDatabase implements IUserService {
       return;
     }
 
+    ensureDataSecurityConfigured();
+
     this.usersCollection = mongoDatabase.collection<UserDocument>('users');
     this.requestCollection = mongoDatabase.collection<RequestRecordDocument>('request_records');
 
-    await Promise.all([
-      this.usersCollection.createIndex({ token: 1 }, { unique: true }),
-      this.usersCollection.createIndex({ email: 1 }),
-      this.usersCollection.createIndex(
-        { googleSubject: 1 },
-        {
-          unique: true,
-          partialFilterExpression: { googleSubject: { $type: 'string' } }
-        }
-      ),
-      this.requestCollection.createIndex({ userId: 1, timestamp: -1 }),
-      this.requestCollection.createIndex(
-        { timestamp: 1 },
-        { expireAfterSeconds: REQUEST_RETENTION_SECONDS }
-      )
-    ]);
+    await this.dropLegacyIndexes();
 
     const documents = await this.usersCollection.find({}).toArray();
 
@@ -199,7 +305,13 @@ class UserDatabase implements IUserService {
     for (const document of documents) {
       const user = fromUserDocument(document);
       this.users.set(user.token, user);
+
+      if (needsUserMigration(document)) {
+        await this.persistUser(user);
+      }
     }
+
+    await this.createIndexes();
 
     for (const seed of this.getDefaultSeeds()) {
       if (this.findById(seed.id) || this.findByEmail(seed.email)) continue;
@@ -210,6 +322,41 @@ class UserDatabase implements IUserService {
       `MongoDB pronto: ${this.users.size} usuário(s) carregado(s).`,
       'MongoDB'
     );
+  }
+
+  private async dropLegacyIndexes(): Promise<void> {
+    if (!this.usersCollection) return;
+
+    for (const indexName of ['token_1', 'email_1', 'googleSubject_1']) {
+      try {
+        await this.usersCollection.dropIndex(indexName);
+      } catch (error) {
+        const code = (error as { code?: number }).code;
+
+        if (code !== 26 && code !== 27) throw error;
+      }
+    }
+  }
+
+  private async createIndexes(): Promise<void> {
+    if (!this.usersCollection || !this.requestCollection) return;
+
+    await Promise.all([
+      this.usersCollection.createIndex({ tokenHash: 1 }, { unique: true }),
+      this.usersCollection.createIndex({ emailHash: 1 }),
+      this.usersCollection.createIndex(
+        { googleSubjectHash: 1 },
+        {
+          unique: true,
+          partialFilterExpression: { googleSubjectHash: { $type: 'string' } }
+        }
+      ),
+      this.requestCollection.createIndex({ userId: 1, timestamp: -1 }),
+      this.requestCollection.createIndex(
+        { timestamp: 1 },
+        { expireAfterSeconds: REQUEST_RETENTION_SECONDS }
+      )
+    ]);
   }
 
   public async addUser(user: User): Promise<User> {
@@ -230,30 +377,42 @@ class UserDatabase implements IUserService {
     await this.persistUser(user);
   }
 
-  private async persistUser(user: User): Promise<void> {
+  private async persistUser(user: User, includeSensitive: boolean = true): Promise<void> {
     if (!this.usersCollection) return;
 
     const now = new Date();
+    const fields = includeSensitive
+      ? buildUserFields(user)
+      : buildMutableFields(user);
+    const unsetFields: Record<string, ''> = { ...LEGACY_USER_FIELDS };
+
+    if (includeSensitive) {
+      if (user.name === undefined) unsetFields.nameEnc = '';
+      if (user.picture === undefined) unsetFields.pictureEnc = '';
+      if (user.googleSubjectHash === undefined) unsetFields.googleSubjectHash = '';
+      if (user.suspensionReason === undefined) unsetFields.suspensionReasonEnc = '';
+    }
 
     await this.usersCollection.updateOne(
       { _id: user.id },
       {
         $set: {
-          ...buildUserFields(user),
+          ...fields,
           updatedAt: now
         },
         $setOnInsert: {
           createdAt: now
-        }
+        },
+        $unset: unsetFields
       },
-      { upsert: true }
+      { upsert: includeSensitive }
     );
   }
 
   private scheduleUserSave(user: User): void {
     if (!this.usersCollection) return;
 
-    void this.persistUser(user).catch(error => {
+    void this.persistUser(user, false).catch(error => {
       const message = error instanceof Error ? error.message : String(error);
       Logger.error(`Falha ao salvar usuário ${user.id}: ${message}`, 'MongoDB');
     });
@@ -272,11 +431,19 @@ class UserDatabase implements IUserService {
   }
 
   public findByEmail(email: string): User | undefined {
-    return Array.from(this.users.values()).find(u => u.email === email);
+    const normalized = normalizeEmail(email);
+
+    return Array.from(this.users.values()).find(
+      u => normalizeEmail(u.email) === normalized
+    );
   }
 
   public findByGoogleSubject(subject: string): User | undefined {
-    return Array.from(this.users.values()).find(u => u.googleSubject === subject);
+    const subjectHash = hashSensitive(subject);
+
+    return Array.from(this.users.values()).find(
+      u => u.googleSubjectHash === subjectHash
+    );
   }
 
   public generateToken(): string {
