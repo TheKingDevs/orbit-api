@@ -7,6 +7,16 @@ export interface DocParam {
 
 export type DocPlayground = "welcome" | "goodbye" | "ttp" | "attp" | "brat" | "abrat";
 
+export type DocPreview =
+  | "ai"
+  | "youtube"
+  | "shazam"
+  | "tiktok-images"
+  | "pinterest"
+  | "video"
+  | "audio"
+  | "ytdl";
+
 export interface ApiDoc {
   slug: string[];
   section: string;
@@ -17,6 +27,8 @@ export interface ApiDoc {
   cost?: string;
   params: DocParam[];
   playground?: DocPlayground;
+  preview?: DocPreview;
+  example?: Record<string, string>;
   comingSoon?: boolean;
 }
 
@@ -151,12 +163,19 @@ function ttpDoc(
   };
 }
 
+interface DownloadDocOptions {
+  preview?: DocPreview;
+  includeUrl?: boolean;
+  example?: Record<string, string>;
+}
+
 function downloadDoc(
   slug: string,
   route: string,
   title: string,
   description: string,
-  extra: DocParam[] = []
+  extra: DocParam[] = [],
+  { preview, includeUrl = true, example }: DownloadDocOptions = {}
 ): ApiDoc {
   return {
     slug: ["downloads", slug],
@@ -166,14 +185,20 @@ function downloadDoc(
     method: "GET",
     path: `/api/download/${route}`,
     cost: "1 request",
+    preview,
+    example,
     params: [
       TOKEN_PARAM,
-      {
-        name: "url",
-        type: "link",
-        required: true,
-        description: "URL do conteúdo que será processado."
-      },
+      ...(includeUrl
+        ? [
+            {
+              name: "url",
+              type: "link" as const,
+              required: true,
+              description: "URL do conteúdo que será processado."
+            }
+          ]
+        : []),
       ...extra
     ]
   };
@@ -285,12 +310,31 @@ export const DOCS: ApiDoc[] = [
       }
     ]
   ),
-  downloadDoc(
-    "pinterest",
-    "pinterest",
-    "Pinterest",
-    "Baixa imagens ou vídeos públicos do Pinterest.",
-    [
+  {
+    slug: ["downloads", "pinterest"],
+    section: "Downloads",
+    title: "Pinterest",
+    description:
+      "Pesquisa pins por termo ou baixa a mídia de uma URL. Retorna imagens, vídeos e links prontos para uso.",
+    method: "GET",
+    path: "/api/download/pinterest",
+    cost: "1 request",
+    preview: "pinterest",
+    example: { query: "gatos" },
+    params: [
+      TOKEN_PARAM,
+      {
+        name: "url",
+        type: "link",
+        required: false,
+        description: "URL do pin para download."
+      },
+      {
+        name: "query",
+        type: "text",
+        required: false,
+        description: "Termo de pesquisa para listar pins."
+      },
       {
         name: "type",
         type: "text",
@@ -298,35 +342,83 @@ export const DOCS: ApiDoc[] = [
         description: "Tipo de mídia: image, gif ou video. Padrão: image."
       }
     ]
-  ),
+  },
   downloadDoc(
     "play-audio",
     "play_audio",
     "Play Audio",
-    "Extrai o áudio de conteúdos do YouTube e de outras plataformas.",
+    "Pesquisa uma música pelo nome no YouTube e retorna a URL de download do áudio (MP3) no campo downloadUrl.",
     [
       {
-        name: "platform",
+        name: "name",
         type: "text",
-        required: false,
-        description: "Plataforma do conteúdo. Padrão: youtube."
+        required: true,
+        description: "Nome da música para buscar no YouTube e baixar como MP3."
       }
-    ]
+    ],
+    {
+      includeUrl: false,
+      example: { name: "Shape of You" }
+    }
   ),
   downloadDoc(
     "play-video",
     "play_video",
     "Play Video",
-    "Baixa o vídeo de conteúdos do YouTube e de outras plataformas.",
+    "Pesquisa um vídeo pelo nome no YouTube e retorna a URL de download do vídeo (MP4) no campo downloadUrl.",
     [
       {
-        name: "platform",
+        name: "name",
         type: "text",
-        required: false,
-        description: "Plataforma do conteúdo. Padrão: youtube."
+        required: true,
+        description: "Nome do vídeo para buscar no YouTube e baixar como MP4."
+      }
+    ],
+    {
+      includeUrl: false,
+      example: { name: "Vídeo de gatos" }
+    }
+  ),
+  {
+    slug: ["downloads", "ytdl-audio"],
+    section: "Downloads",
+    title: "YTDL Áudio",
+    description:
+      "Recebe a URL de um vídeo do YouTube e retorna o link direto de download do áudio (MP3).",
+    method: "GET",
+    path: "/api/download/ytdl_audio",
+    cost: "1 request",
+    preview: "ytdl",
+    params: [
+      TOKEN_PARAM,
+      {
+        name: "url",
+        type: "link",
+        required: true,
+        description: "URL do vídeo do YouTube para extrair o link de download do áudio (MP3)."
       }
     ]
-  ),
+  },
+  {
+    slug: ["downloads", "ytdl-video"],
+    section: "Downloads",
+    title: "YTDL Vídeo",
+    description:
+      "Recebe a URL de um vídeo do YouTube e retorna o link direto de download do vídeo (MP4).",
+    method: "GET",
+    path: "/api/download/ytdl_video",
+    cost: "1 request",
+    preview: "ytdl",
+    params: [
+      TOKEN_PARAM,
+      {
+        name: "url",
+        type: "link",
+        required: true,
+        description: "URL do vídeo do YouTube para extrair o link de download do vídeo (MP4)."
+      }
+    ]
+  },
   downloadDoc(
     "tiktok-audio",
     "tiktok_audio",
@@ -338,6 +430,38 @@ export const DOCS: ApiDoc[] = [
     "tiktok_video",
     "TikTok Video",
     "Baixa um vídeo público do TikTok."
+  ),
+  downloadDoc(
+    "tiktok-images",
+    "tiktok_images",
+    "TikTok Imagens",
+    "Retorna todas as imagens/slides de um post do TikTok.",
+    [],
+    { preview: "tiktok-images" }
+  ),
+  downloadDoc(
+    "kwai",
+    "kwai",
+    "Kwai",
+    "Retorna os links e metadados de vídeos públicos do Kwai.",
+    [],
+    { preview: "video" }
+  ),
+  downloadDoc(
+    "facebook",
+    "facebook",
+    "Facebook",
+    "Retorna os links de vídeo em SD e HD de publicações públicas do Facebook.",
+    [],
+    { preview: "video" }
+  ),
+  downloadDoc(
+    "soundcloud",
+    "soundcloud",
+    "SoundCloud",
+    "Retorna informações, capa e links de áudio de faixas do SoundCloud.",
+    [],
+    { preview: "audio" }
   ),
   ttpDoc(
     "Stickers",
@@ -395,24 +519,126 @@ export const DOCS: ApiDoc[] = [
     "Image AI",
     "Geração e edição de imagens com inteligência artificial."
   ),
-  comingSoon(
-    ["pesquisa"],
-    "API's",
-    "Pesquisa",
-    "Pesquisa e busca de conteúdo para bots e automações."
-  ),
-  comingSoon(
-    ["text-ai"],
-    "API's",
-    "Text AI",
-    "Geração de texto com inteligência artificial."
-  ),
-  comingSoon(
-    ["ferramentas"],
-    "Outros",
-    "Ferramentas",
-    "Ferramentas e utilitários da Orbit API."
-  ),
+  {
+    slug: ["text-ai", "gpt"],
+    section: "Text AI",
+    title: "GPT",
+    description:
+      "Consulta a inteligência artificial GPT e retorna a resposta em JSON. Aceita GET com query na URL ou POST com JSON/form.",
+    method: "GET/POST",
+    path: "/api/ai/gpt",
+    cost: "1 request",
+    preview: "ai",
+    params: [
+      TOKEN_PARAM,
+      {
+        name: "query",
+        type: "text",
+        required: true,
+        description: "Pergunta ou instrução enviada para a IA."
+      }
+    ]
+  },
+  {
+    slug: ["text-ai", "groq"],
+    section: "Text AI",
+    title: "Groq",
+    description:
+      "Consulta a inteligência artificial Groq e retorna a resposta em JSON. Aceita GET com query na URL ou POST com JSON/form.",
+    method: "GET/POST",
+    path: "/api/ai/groq",
+    cost: "1 request",
+    preview: "ai",
+    params: [
+      TOKEN_PARAM,
+      {
+        name: "query",
+        type: "text",
+        required: true,
+        description: "Pergunta ou instrução enviada para a IA."
+      }
+    ]
+  },
+  {
+    slug: ["text-ai", "gemini"],
+    section: "Text AI",
+    title: "Gemini",
+    description:
+      "Consulta a inteligência artificial Gemini e retorna a resposta em JSON. Aceita GET com query na URL ou POST com JSON/form.",
+    method: "GET/POST",
+    path: "/api/ai/gemini",
+    cost: "1 request",
+    preview: "ai",
+    params: [
+      TOKEN_PARAM,
+      {
+        name: "query",
+        type: "text",
+        required: true,
+        description: "Pergunta ou instrução enviada para a IA."
+      }
+    ]
+  },
+  {
+    slug: ["pesquisa", "youtube"],
+    section: "Pesquisa",
+    title: "YouTube",
+    description:
+      "Pesquisa vídeos no YouTube e retorna título, canal, thumbnail, duração e link em JSON.",
+    method: "GET/POST",
+    path: "/api/search/youtube",
+    cost: "1 request",
+    preview: "youtube",
+    params: [
+      TOKEN_PARAM,
+      {
+        name: "query",
+        type: "text",
+        required: true,
+        description: "Termo de pesquisa."
+      }
+    ]
+  },
+  {
+    slug: ["pesquisa", "youtube-v2"],
+    section: "Pesquisa",
+    title: "YouTube v2",
+    description:
+      "Pesquisa vídeos no YouTube com metadados adicionais e retorna os resultados em JSON.",
+    method: "GET/POST",
+    path: "/api/search/youtube/v2",
+    cost: "1 request",
+    preview: "youtube",
+    params: [
+      TOKEN_PARAM,
+      {
+        name: "query",
+        type: "text",
+        required: true,
+        description: "Termo de pesquisa."
+      }
+    ]
+  },
+  {
+    slug: ["ferramentas", "shazam"],
+    section: "Ferramentas",
+    title: "Shazam",
+    description:
+      "Identifica uma música a partir de uma URL de áudio e retorna título, artista, capa e preview.",
+    method: "GET/POST",
+    path: "/api/ai/shazam",
+    cost: "1 request",
+    preview: "shazam",
+    params: [
+      TOKEN_PARAM,
+      {
+        name: "audioUrl",
+        type: "link",
+        required: true,
+        description: "URL pública do áudio que será identificado (mp3, m4a etc.)."
+      }
+    ]
+  },
   comingSoon(
     ["bot-de-exemplo"],
     "Outros",

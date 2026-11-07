@@ -6,6 +6,15 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  async redirects() {
+    return [
+      {
+        source: "/404",
+        destination: "/erro/404",
+        permanent: false
+      }
+    ];
+  },
   async rewrites() {
     return [
       {

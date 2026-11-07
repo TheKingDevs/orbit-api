@@ -32,17 +32,17 @@ const API_ITEMS: NavItem[] = [
   { label: "Audio AI", icon: "mic", children: linksFor("audio") },
   { label: "Canvas", icon: "image", children: linksFor("canvas") },
   { label: "Downloads", icon: "download", children: linksFor("downloads") },
+  { label: "Ferramentas", icon: "gear", children: linksFor("ferramentas") },
   { label: "Image AI", icon: "sparkles", slug: ["image-ai"] },
-  { label: "Pesquisa", icon: "search", slug: ["pesquisa"] },
+  { label: "Pesquisa", icon: "search", children: linksFor("pesquisa") },
   { label: "Stickers", icon: "sticker", children: linksFor("stickers") },
-  { label: "Text AI", icon: "text", slug: ["text-ai"] },
+  { label: "Text AI", icon: "text", children: linksFor("text-ai") },
   { label: "Utilitários", icon: "tools", children: linksFor("utilitarios") }
 ];
 
 const MISC_ITEMS: NavItem[] = [
   { label: "Bot de exemplo", icon: "bot", slug: ["bot-de-exemplo"] },
   { label: "Sugestões e Erros", icon: "clipboard", slug: ["sugestao"] },
-  { label: "Ferramentas", icon: "gear", slug: ["ferramentas"] },
   { label: "Grupo de suporte", icon: "whatsapp", slug: ["suporte"] },
   { label: "Novidades", icon: "star", href: "/app/novidades" }
 ];
@@ -78,7 +78,7 @@ function OrbitMark() {
 
 export default function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, logout, status } = useAuth();
   const [accountOpen, setAccountOpen] = useState(false);
 
   const activeGroup =
@@ -263,26 +263,36 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               </div>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setAccountOpen((value) => !value)}
-            aria-expanded={accountOpen}
-            className="flex w-full items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-2 text-left transition hover:border-violet-400/20 hover:bg-violet-400/[0.06]"
-          >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-violet-400/20 bg-violet-400/15 text-sm font-semibold text-violet-200">
-              {initial}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-white">{displayName}</span>
-              <span className="block truncate text-xs text-zinc-400">{user?.email}</span>
-            </span>
-            <Icon
-              name="chevronDown"
-              className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform duration-300 ${
-                accountOpen ? "rotate-180" : ""
-              }`}
-            />
-          </button>
+          {status === "loading" ? (
+            <div className="flex w-full items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-2">
+              <span className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-white/[0.07] motion-reduce:animate-none" />
+              <span className="min-w-0 flex-1 space-y-2">
+                <span className="block h-2.5 w-24 animate-pulse rounded-full bg-white/[0.08] motion-reduce:animate-none" />
+                <span className="block h-2 w-32 animate-pulse rounded-full bg-white/[0.05] motion-reduce:animate-none" />
+              </span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setAccountOpen((value) => !value)}
+              aria-expanded={accountOpen}
+              className="flex w-full items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-2 text-left transition hover:border-violet-400/20 hover:bg-violet-400/[0.06]"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-violet-400/20 bg-violet-400/15 text-sm font-semibold text-violet-200">
+                {initial}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-white">{displayName}</span>
+                <span className="block truncate text-xs text-zinc-400">{user?.email}</span>
+              </span>
+              <Icon
+                name="chevronDown"
+                className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform duration-300 ${
+                  accountOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+          )}
         </div>
       </aside>
     </>

@@ -5,10 +5,24 @@ import { htmlToImageAssetRoute } from './public/htmlToImageAsset';
 
 import { downloadPlayAudioRoute } from './api/download/play_audio';
 import { downloadPlayVideoRoute } from './api/download/play_video';
+import { downloadYtdlAudioRoute } from './api/download/ytdl_audio';
+import { downloadYtdlVideoRoute } from './api/download/ytdl_video';
 import { downloadPinterestRoute } from './api/download/pinterest';
 import { downloadInstagramRoute } from './api/download/instagram';
 import { downloadTikTokAudioRoute } from './api/download/tiktok_audio';
 import { downloadTikTokVideoRoute } from './api/download/tiktok_video';
+import { downloadTikTokImagesRoute } from './api/download/tiktok_images';
+import { downloadKwaiRoute } from './api/download/kwai';
+import { downloadFacebookRoute } from './api/download/facebook';
+import { downloadSoundCloudRoute } from './api/download/soundcloud';
+
+import { shazamRoute } from './api/ai/shazam';
+import { gptRoute } from './api/ai/gpt';
+import { groqRoute } from './api/ai/groq';
+import { geminiRoute } from './api/ai/gemini';
+
+import { ytSearchRoute } from './api/search/youtube';
+import { ytSearchV2Route } from './api/search/youtubeV2';
 
 import { canvasWelcomeRoute } from './api/canvas/welcome';
 import { canvasGoodbyeRoute } from './api/canvas/goodbye';
@@ -71,11 +85,26 @@ export async function router(req: Request): Promise<Response> {
   // --- API DOWNLOADS ---
   if (path === '/api/download/play_audio') return downloadPlayAudioRoute(req, url);
   if (path === '/api/download/play_video') return downloadPlayVideoRoute(req, url);
+  if (path === '/api/download/ytdl_audio') return downloadYtdlAudioRoute(req, url);
+  if (path === '/api/download/ytdl_video') return downloadYtdlVideoRoute(req, url);
   if (path === '/api/download/pinterest') return downloadPinterestRoute(req, url);
   if (path === '/api/download/instagram') return downloadInstagramRoute(req, url);
   if (path === '/api/download/tiktok_audio') return downloadTikTokAudioRoute(req, url);
   if (path === '/api/download/tiktok_video') return downloadTikTokVideoRoute(req, url);
+  if (path === '/api/download/tiktok_images' || path === '/api/download/tiktok_slides') return downloadTikTokImagesRoute(req, url);
+  if (path === '/api/download/kwai') return downloadKwaiRoute(req, url);
+  if (path === '/api/download/facebook') return downloadFacebookRoute(req, url);
+  if (path === '/api/download/soundcloud') return downloadSoundCloudRoute(req, url);
 
+  // --- API AI ---
+  if (path === '/api/ai/shazam' || path === '/api/shazam') return shazamRoute(req, url);
+  if (path === '/api/ai/gpt' || path === '/api/gpt') return gptRoute(req, url);
+  if (path === '/api/ai/groq' || path === '/api/groq') return groqRoute(req, url);
+  if (path === '/api/ai/gemini' || path === '/api/gemini') return geminiRoute(req, url);
+
+  // --- API SEARCH ---
+  if (path === '/api/search/youtube' || path === '/api/ytsearch') return ytSearchRoute(req, url);
+  if (path === '/api/search/youtube/v2' || path === '/api/ytsearch_v2') return ytSearchV2Route(req, url);
   // --- API STICKER ---
   if (path === '/api/sticker/ttp') return stickerTtpRoute(req, url);
   if (path === '/api/sticker/attp') return stickerAttpRoute(req, url);

@@ -2,11 +2,14 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE } from "@constants";
 
-const PUBLIC_ROUTES = ["/", "/login", "/404"];
+const PUBLIC_ROUTES = ["/", "/login", "/404", "/erro"];
 
 export function proxy(req: NextRequest) {
   const hasSession = req.cookies.has(SESSION_COOKIE);
-  const isPublic = PUBLIC_ROUTES.includes(req.nextUrl.pathname);
+  const pathname = req.nextUrl.pathname;
+  const isPublic = PUBLIC_ROUTES.some(route =>
+    route === "/" ? pathname === "/" : pathname === route || pathname.startsWith(`${route}/`)
+  );
 
   if (!hasSession && !isPublic) {
     return NextResponse.redirect(new URL("/login", req.url));

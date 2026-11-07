@@ -3,6 +3,8 @@
 import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@lib/auth/AuthProvider";
+import AppLoading from "@components/dashboard/AppLoading";
+import DashboardShell from "@components/dashboard/DashboardShell";
 
 export default function SessionGate({ children }: { children: ReactNode }) {
   const { status } = useAuth();
@@ -14,13 +16,19 @@ export default function SessionGate({ children }: { children: ReactNode }) {
     }
   }, [status, router]);
 
-  if (status !== "authenticated") {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center text-zinc-400">
-        Verificando sessão...
-      </div>
-    );
-  }
-
-  return <>{children}</>;
+  return (
+    <DashboardShell>
+      {status === "authenticated" ? (
+        children
+      ) : (
+        <AppLoading
+          label={
+            status === "unauthenticated"
+              ? "Sessão encerrada. Redirecionando..."
+              : "Verificando sua sessão..."
+          }
+        />
+      )}
+    </DashboardShell>
+  );
 }

@@ -1,14 +1,10 @@
-"use client";
-
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import OrbitLogo from "@components/landing/OrbitLogo";
 
 interface ErrorPageProps {
   code: string;
   title: string;
   message: string;
-  detail?: string;
   onRetry?: () => void;
 }
 
@@ -16,11 +12,8 @@ export default function ErrorPage({
   code,
   title,
   message,
-  detail,
   onRetry
 }: ErrorPageProps) {
-  const pathname = usePathname();
-
   return (
     <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-[#0a0a0c] px-6 py-12 text-white">
       <div
@@ -38,7 +31,7 @@ export default function ErrorPage({
       <div className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#111113]/90 p-8 text-center shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-10">
         <Link
           href="/"
-          className="inline-flex items-center gap-2.5 text-lg font-semibold tracking-tight"
+          className="mx-auto flex w-fit items-center gap-2.5 text-lg font-semibold tracking-tight"
         >
           <OrbitLogo className="h-8 w-auto" alt="Orbit API" />
           Orbit
@@ -47,7 +40,7 @@ export default function ErrorPage({
           </span>
         </Link>
 
-        <span className="mt-8 inline-flex items-center rounded-full border border-violet-400/20 bg-violet-400/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-300">
+        <span className="mx-auto mt-8 flex w-fit items-center rounded-full border border-violet-400/20 bg-violet-400/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-300">
           Erro {code}
         </span>
 
@@ -58,16 +51,6 @@ export default function ErrorPage({
         <p className="mt-3 text-[15px] leading-relaxed text-zinc-400">
           {message}
         </p>
-
-        {pathname ? (
-          <p className="mt-4 break-all font-mono text-xs text-zinc-600">
-            {pathname}
-          </p>
-        ) : null}
-
-        {detail ? (
-          <p className="mt-2 font-mono text-xs text-zinc-600">{detail}</p>
-        ) : null}
 
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           {onRetry ? (

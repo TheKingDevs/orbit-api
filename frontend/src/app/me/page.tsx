@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import SessionGate from '@components/SessionGate';
-import DashboardShell from '@components/dashboard/DashboardShell';
 import { Icon, type IconName } from '@components/dashboard/icons';
 import { useAuth } from '@lib/auth/AuthProvider';
 import {
@@ -410,9 +409,7 @@ export default function Me() {
   return (
     <div className="min-h-screen bg-[#0b0b0d] text-white">
       <SessionGate>
-        <DashboardShell>
-          <AccountContent />
-        </DashboardShell>
+        <AccountContent />
       </SessionGate>
     </div>
   );

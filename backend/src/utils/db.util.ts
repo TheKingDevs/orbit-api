@@ -619,7 +619,7 @@ class UserDatabase implements IUserService {
     const user = this.findByToken(token);
 
     if (!user) {
-      throw new UnauthorizedError('Token de acesso é inválido ou não foi encontrado no banco de dados.');
+      throw new UnauthorizedError('Token de acesso inválido.');
     }
 
     return this.validateUserAccess(user, `api:${token}`, req, consumeToken);

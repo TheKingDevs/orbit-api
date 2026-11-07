@@ -14,11 +14,35 @@ export interface NewsEntry {
 
 export const NEWS: NewsEntry[] = [
   {
-    date: "5 de novembro de 2026",
+    date: "7 de novembro de 2026",
     version: APP_VERSION,
+    title: "Novos recursos de IA, downloads e experiência renovada",
+    summary:
+      "Versão 2.0.0 com novas APIs de IA e pesquisa, downloads ampliados, documentação interativa, métricas de uso, loading renovado e SEO para compartilhamento.",
+    items: [
+      "Novos endpoints de IA: GPT, Groq, Gemini e Shazam, com prévia interativa na documentação.",
+      "Novos downloads: TikTok Imagens, Kwai, Facebook e SoundCloud, além da busca do Pinterest por termo.",
+      "Pesquisa de YouTube (v1 e v2) integrada à API.",
+      "Play Audio e Play Video agora recebem apenas o nome da música/vídeo e retornam a URL de download do áudio ou vídeo.",
+      "YTDL Áudio e YTDL Vídeo para obter o link direto de download a partir de uma URL do YouTube.",
+      "Menu lateral reorganizado em grupos: Text AI, Pesquisa e Ferramentas.",
+      "Painel com métricas de uso da API: requests do dia, consumo diário, endpoints mais usados e histórico de chamadas.",
+      "Documentação com prévias ao vivo para IA, YouTube, Shazam, Pinterest, Kwai, Facebook, SoundCloud e TikTok.",
+      "Novo loading com skeleton, mantendo o shell do app enquanto a sessão é verificada.",
+      "SEO completo para compartilhamento: Open Graph, Twitter Card, imagem de capa com a logo, sitemap, robots e dados estruturados.",
+      "Transcrição com Whisper, Canvas, stickers (TTP, ATTP, Brat e Abrat) e conversão para GIF mantidos e aprimorados."
+    ],
+    link: {
+      label: "Explorar novos recursos",
+      href: "/app/doc/text-ai/gpt"
+    }
+  },
+  {
+    date: "5 de novembro de 2026",
+    version: "1.4.0",
     title: "Navegação, novidades e nova home",
     summary:
-      "Atualização focada em organização e experiência de uso da plataforma, sem alteração no custo das requisições.",
+      "Atualização focada em organização e experiência de uso da plataforma.",
     items: [
       "Menu lateral reorganizado para deixar as ferramentas mais fáceis de encontrar.",
       "Nova página de novidades com o histórico de atualizações da plataforma.",
@@ -26,11 +50,7 @@ export const NEWS: NewsEntry[] = [
       "Prévias da documentação agora têm limite diário próprio e não consomem requisições.",
       "Copiar a API Key ficou mais simples, mesmo quando a chave está oculta.",
       "Identidade visual atualizada com a logo oficial da Orbit."
-    ],
-    link: {
-      label: "Ver documentação",
-      href: "/app/doc/canvas/welcome"
-    }
+    ]
   },
   {
     date: "4 de novembro de 2026",

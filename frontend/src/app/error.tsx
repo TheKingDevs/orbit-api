@@ -2,11 +2,14 @@
 
 import { useEffect } from "react";
 import ErrorPage from "@components/errors/ErrorPage";
+import { getErrorCopy } from "@lib/errors";
 
 interface ErrorProps {
   error: Error & { digest?: string };
   reset: () => void;
 }
+
+const copy = getErrorCopy(500);
 
 export default function Error({ error, reset }: ErrorProps) {
   useEffect(() => {
@@ -16,9 +19,8 @@ export default function Error({ error, reset }: ErrorProps) {
   return (
     <ErrorPage
       code="500"
-      title="Algo deu errado"
-      message="Não foi possível concluir esta ação. Tente novamente em instantes."
-      detail={error.digest ? `Código do erro: ${error.digest}` : undefined}
+      title={copy.title}
+      message={copy.message}
       onRetry={reset}
     />
   );

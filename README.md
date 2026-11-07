@@ -22,7 +22,9 @@ O frontend encaminha `/api`, `/storage`, `/preview/ttp` e os assets necessários
 
 ## Funcionalidades
 
-- Downloads de Instagram, TikTok (vídeo e áudio), Pinterest e YouTube (vídeo e áudio).
+- Downloads de Instagram, TikTok (vídeo, áudio e imagens/slides), Pinterest (URL ou pesquisa), YouTube, Kwai, Facebook e SoundCloud.
+- Inteligência artificial com GPT, Groq, Gemini e identificação musical com Shazam.
+- Pesquisas de YouTube (`v1` e `v2`) e wallpapers.
 - Geração de cards e imagens com Canvas (`welcome`, `goodbye`, `ttp`, `attp` e efeitos).
 - Criação de stickers (`ttp`, `attp`, `brat`, `abrat`) e conversão para GIF.
 - Transcrição de áudio e vídeo com Whisper via `sherpa-onnx`.
@@ -46,7 +48,7 @@ flowchart TB
     subgraph RENDER["Render"]
         BE["Backend Bun<br/>backend/"]
         AUTH["Google OAuth<br/>sessões e cookies"]
-        DL["Downloads<br/>Instagram · TikTok · Pinterest · YouTube"]
+        DL["Downloads e IA<br/>devworldbr-sdk"]
         ART["Canvas e stickers<br/>@napi-rs/canvas + ffmpeg"]
         TR["Transcrição<br/>sherpa-onnx Whisper"]
         ST[("Storage<br/>backend/storage")]
@@ -147,6 +149,7 @@ Preencha os valores locais. **Nunca versione arquivos `.env`.**
 | --- | --- |
 | `BACKEND_URL` | URL do backend usada pelos rewrites do Next.js. |
 | `NEXT_PUBLIC_APP_NAME` | Nome exibido na interface. |
+| `NEXT_PUBLIC_SITE_URL` | URL pública do site usada em SEO, Open Graph, sitemap e robots. |
 | `NEXT_PUBLIC_API_URL` | URL pública da API nos exemplos de código. |
 | `NEXT_PUBLIC_WHATSAPP_CHANNEL_URL` | URL do canal de atualizações. |
 

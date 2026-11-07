@@ -2,7 +2,7 @@ import { router } from '@routes/index';
 import { handleRouteError } from '@middlewares/errorHandler';
 import { Logger } from '@utils/logger';
 import { finalizeAuthenticatedRequest } from '@services/requestTrace.service';
-import { NotFoundError } from '@errors/index';
+import { AppError } from '@errors/index';
 import { normalizeBaseUrl } from '@utils/url.util';
 import { db } from '@utils/db.util';
 import { sessionManager } from '@services/session.service';
@@ -14,13 +14,17 @@ function isBrowserNavigation(req: Request): boolean {
   return req.method === 'GET' && (req.headers.get('accept') ?? '').includes('text/html');
 }
 
-function redirectToNotFound(req: Request): Response | null {
+function redirectToError(req: Request, statusCode: number): Response | null {
   if (!isBrowserNavigation(req)) return null;
 
   const frontendUrl = normalizeBaseUrl(process.env.FRONTEND_URL);
   if (!frontendUrl) return null;
 
-  const response = Response.redirect(`${frontendUrl}/404`, 302);
+  const safeStatus =
+    Number.isInteger(statusCode) && statusCode >= 400 && statusCode <= 599
+      ? statusCode
+      : 500;
+  const response = Response.redirect(`${frontendUrl}/erro/${safeStatus}`, 302);
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('Referrer-Policy', 'no-referrer');
   finalizeAuthenticatedRequest(req, response.status);
@@ -44,10 +48,9 @@ async function start(): Promise<void> {
         response.headers.set('Referrer-Policy', 'no-referrer');
         return response;
       } catch (error: any) {
-        if (error instanceof NotFoundError) {
-          const redirect = redirectToNotFound(req);
-          if (redirect) return redirect;
-        }
+        const statusCode = error instanceof AppError ? error.statusCode : 500;
+        const redirect = redirectToError(req, statusCode);
+        if (redirect) return redirect;
 
         const response = handleRouteError(error, url.pathname);
         finalizeAuthenticatedRequest(req, response.status);

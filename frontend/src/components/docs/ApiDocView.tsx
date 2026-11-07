@@ -12,9 +12,12 @@ import { useAuth } from "@lib/auth/AuthProvider";
 import { useApiKey } from "@lib/auth/useApiKey";
 import type { ApiDoc, DocParam, DocPlayground } from "@lib/docs";
 import { Icon, type IconName } from "@components/dashboard/icons";
+import ApiPreview from "@components/docs/ApiPreview";
 
 const SAMPLE_VALUES: Record<string, string> = {
   url: "https://exemplo.com/conteudo",
+  query: "gatos fofos",
+  audioUrl: "https://exemplo.com/audio.mp3",
   avatarUrl: "https://exemplo.com/avatar.png",
   bgUrl: "https://exemplo.com/fundo.jpg",
   username: "Fulano",
@@ -171,8 +174,12 @@ function buildExample(
     }
   } else {
     for (const param of doc.params) {
-      if (!param.required || param.name === "token" || param.type === "file") continue;
-      query.set(param.name, sampleValue(param));
+      if (param.name === "token" || param.type === "file") continue;
+
+      const example = doc.example?.[param.name];
+      const value = example ?? (param.required ? sampleValue(param) : null);
+
+      if (value) query.set(param.name, value);
     }
   }
 
@@ -459,6 +466,8 @@ export default function ApiDocView({ doc }: { doc: ApiDoc }) {
                 </table>
               </div>
             </div>
+
+            {doc.preview && <ApiPreview doc={doc} preview={doc.preview} />}
 
             {doc.playground && (
               <div className="mt-7">

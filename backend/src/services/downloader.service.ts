@@ -73,6 +73,28 @@ class BaseDownloaderService implements IDownloaderService {
     }
   }
 
+  async resolveMediaUrl(dto: DownloadRequestDTO): Promise<{ directUrl: string; mediaType: MediaType; suggestedExt?: string; metadata: MediaMetadata }> {
+    try {
+      const { url, type, platform } = dto;
+
+      if (!url) {
+        throw new Error('URL é obrigatória para resolução de mídia.');
+      }
+
+      const resolved = await this.resolveWithYtDlp(url, type, platform);
+
+      return {
+        directUrl: resolved.directUrl,
+        mediaType: resolved.mediaType,
+        suggestedExt: resolved.suggestedExt,
+        metadata: resolved.metadata
+      };
+    } catch (error: any) {
+      if (error instanceof WarningError) throw error;
+      throw new DangerError(`Falha ao resolver mídia: ${error.message}`, 500);
+    }
+  }
+
   private successMessage(mediaType: MediaType): string {
     if (mediaType === 'video') return 'video baixado com sucesso!';
     if (mediaType === 'audio') return 'áudio baixado com sucesso!';
