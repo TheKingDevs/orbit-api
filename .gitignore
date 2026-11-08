@@ -42,3 +42,5 @@ deploy.log
 backend-status.txt
 frontend-status.txt
 deployment-info.txt
+scripts/node_modules/
+scripts/.tools/

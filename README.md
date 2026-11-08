@@ -206,7 +206,7 @@ O comando compila o backend e o frontend e inicia os dois em modo de produção.
 | `make clean` | Remove `dist`, `.next` e `node_modules`. |
 | `make clean-cache` | Limpa caches de build. |
 | `./scripts/build-backend.sh` | Instala dependências e compila somente o backend. |
-| `./scripts/deploy.sh` | Executa o build de backend e frontend para deploy. |
+| `./scripts/deploy.sh` | Abre a CLI interativa para build e publicação no Render e na Vercel. |
 | `cd backend && bun test` | Executa os testes do backend. |
 | `cd frontend && npm run lint` | Executa o lint do frontend. |
 
@@ -227,6 +227,23 @@ npm run build
 ```
 
 ## Deploy
+
+### CLI interativa
+
+A ferramenta em `scripts/deploy.ts` oferece menus, confirmações e mensagens de progresso para publicar frontend, backend ou ambos. Ela executa os CLIs oficiais e deixa os binários locais ignorados pelo Git:
+
+```bash
+cd scripts && npm ci
+./deploy.sh
+```
+
+O banner FIGlet é centralizado no terminal, e a CLI apresenta as etapas do fluxo com barra de progresso e atividade atual. O pacote `vercel` fica instalado localmente em `scripts/node_modules/.bin`. Para instalar o binário oficial do Render dentro de `scripts/.tools/bin` (Linux/macOS x64 e ARM64; requer `curl` e `unzip`), use `cd scripts && npm run install-render`. A ferramenta também reconhece um `render` já disponível no `PATH`.
+
+Para localizar o serviço Render, a CLI lista os serviços do workspace autenticado e compara seus nomes com o `name` em `backend/render.yaml` (por padrão, `orbit-backend`). Se o nome não corresponder, mas houver apenas um serviço web acessível, usa esse serviço; com vários, permite escolher. `RENDER_SERVICE_ID` define um ID explícito e `RENDER_SERVICE_NAME` troca o nome usado na busca. IDs manuais são comparados com a lista acessível pela API key antes dos builds. Se o Render não responder por erro de rede/DNS, a CLI interrompe antes dos builds. Se a resposta de deploy indicar que o repositório GitHub conectado não foi encontrado, a CLI informa o ID do repositório e orienta a reconectar a integração no painel Render; esse caso não usa fallback para evitar mascarar o diagnóstico. Outros erros 404 de deploy ainda tentam o Render CLI como alternativa.
+
+O frontend usa o projeto já vinculado em `frontend/.vercel/project.json`; se não houver vínculo local, o CLI da Vercel permite selecionar um projeto pela conta autenticada. Para aguardar a conclusão do deploy do Render, informe ou configure `RENDER_SERVICE_ID`; sem ID, a CLI do Render permite escolher o serviço e retorna assim que aceita o deploy. Os dois provedores precisam estar autenticados. Confirme cada publicação de produção quando solicitado.
+
+O código e os metadados oficiais dos comandos estão em [Render CLI](https://render.com/docs/cli) e [Vercel CLI](https://vercel.com/docs/projects/deploy-from-cli).
 
 ### Backend — Render
 

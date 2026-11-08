@@ -1,0 +1,27 @@
+{
+  "name": "@orbit/deploy-cli",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.9"
+  },
+  "bin": {
+    "orbit-deploy": "./cli.js"
+  },
+  "scripts": {
+    "deploy": "tsx deploy.ts",
+    "install-render": "sh install-render.sh"
+  },
+  "devDependencies": {
+    "@clack/prompts": "^0.11.0",
+    "chalk": "^5.4.1",
+    "ora": "^8.2.0",
+    "tsx": "^4.20.6",
+    "vercel": "65.2.0"
+  },
+  "dependencies": {
+    "figlet": "^1.12.0",
+    "gradient-string": "^3.0.0"
+  }
+}
