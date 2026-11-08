@@ -15,7 +15,12 @@ export type DocPreview =
   | "pinterest"
   | "video"
   | "audio"
-  | "ytdl";
+  | "ytdl"
+  | "media"
+  | "effects"
+  | "transcribe"
+  | "to-gif"
+  | "image-generation";
 
 export interface ApiDoc {
   slug: string[];
@@ -32,13 +37,15 @@ export interface ApiDoc {
   comingSoon?: boolean;
 }
 
-const TOKEN_PARAM: DocParam = {
-  name: "token",
+const APIKEY_PARAM: DocParam = {
+  name: "apikey",
   type: "text",
   required: true,
   description:
-    "Sua API Key. Também é possível autenticar com o cookie de sessão ou com o header Authorization: Bearer."
+    "Sua chave de API para consumir os recursos. Envie no header x-apikey ou como parâmetro apikey na URL."
 };
+
+const TOKEN_PARAM: DocParam = APIKEY_PARAM;
 
 function canvasCardDoc(
   slug: "welcome" | "goodbye",
@@ -242,6 +249,11 @@ export const DOCS: ApiDoc[] = [
     method: "GET/POST",
     path: "/api/canvas/effects",
     cost: "1 request",
+    preview: "effects",
+    example: {
+      url: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400",
+      effect: "circle"
+    },
     params: [
       TOKEN_PARAM,
       {
@@ -280,6 +292,7 @@ export const DOCS: ApiDoc[] = [
     method: "POST",
     path: "/api/transcribe",
     cost: "1 request",
+    preview: "transcribe",
     params: [
       TOKEN_PARAM,
       {
@@ -308,7 +321,14 @@ export const DOCS: ApiDoc[] = [
         required: true,
         description: "Tipo de mídia: video ou image."
       }
-    ]
+    ],
+    {
+      preview: "media",
+      example: {
+        url: "https://www.instagram.com/reel/DfZkZLXP0gw/?vrfl=emx5aWQ5czR0ZmZo",
+        type: "video"
+      }
+    }
   ),
   {
     slug: ["downloads", "pinterest"],
@@ -357,6 +377,7 @@ export const DOCS: ApiDoc[] = [
       }
     ],
     {
+      preview: "media",
       includeUrl: false,
       example: { name: "Shape of You" }
     }
@@ -375,6 +396,7 @@ export const DOCS: ApiDoc[] = [
       }
     ],
     {
+      preview: "media",
       includeUrl: false,
       example: { name: "Vídeo de gatos" }
     }
@@ -388,7 +410,8 @@ export const DOCS: ApiDoc[] = [
     method: "GET",
     path: "/api/download/ytdl_audio",
     cost: "1 request",
-    preview: "ytdl",
+    preview: "media",
+    example: { url: "https://www.youtube.com/watch?v=kJQP7kiw5Fk" },
     params: [
       TOKEN_PARAM,
       {
@@ -408,7 +431,8 @@ export const DOCS: ApiDoc[] = [
     method: "GET",
     path: "/api/download/ytdl_video",
     cost: "1 request",
-    preview: "ytdl",
+    preview: "media",
+    example: { url: "https://www.youtube.com/watch?v=kJQP7kiw5Fk" },
     params: [
       TOKEN_PARAM,
       {
@@ -423,13 +447,23 @@ export const DOCS: ApiDoc[] = [
     "tiktok-audio",
     "tiktok_audio",
     "TikTok Audio",
-    "Extrai o áudio de um vídeo público do TikTok."
+    "Extrai o áudio de um vídeo público do TikTok.",
+    [],
+    {
+      preview: "media",
+      example: { url: "https://vm.tiktok.com/ZSpk6mMKE/" }
+    }
   ),
   downloadDoc(
     "tiktok-video",
     "tiktok_video",
     "TikTok Video",
-    "Baixa um vídeo público do TikTok."
+    "Baixa um vídeo público do TikTok.",
+    [],
+    {
+      preview: "media",
+      example: { url: "https://vm.tiktok.com/ZSpk6mMKE/" }
+    }
   ),
   downloadDoc(
     "tiktok-images",
@@ -438,14 +472,6 @@ export const DOCS: ApiDoc[] = [
     "Retorna todas as imagens/slides de um post do TikTok.",
     [],
     { preview: "tiktok-images" }
-  ),
-  downloadDoc(
-    "kwai",
-    "kwai",
-    "Kwai",
-    "Retorna os links e metadados de vídeos públicos do Kwai.",
-    [],
-    { preview: "video" }
   ),
   downloadDoc(
     "facebook",
@@ -503,6 +529,7 @@ export const DOCS: ApiDoc[] = [
     method: "POST",
     path: "/api/utility/to-gif",
     cost: "1 request",
+    preview: "to-gif",
     params: [
       TOKEN_PARAM,
       {
@@ -513,12 +540,28 @@ export const DOCS: ApiDoc[] = [
       }
     ]
   },
-  comingSoon(
-    ["image-ai"],
-    "API's",
-    "Image AI",
-    "Geração e edição de imagens com inteligência artificial."
-  ),
+  {
+    slug: ["image-ai", "stable-diffusion"],
+    section: "Image AI",
+    title: "Stable Diffusion",
+    description: "Gera imagens com modelos Stable Diffusion disponíveis no AI Horde. Envie um prompt, ajustes de geração e, opcionalmente, um prompt negativo.",
+    method: "POST",
+    path: "/api/ai/image",
+    cost: "1 request",
+    preview: "image-generation",
+    example: {
+      prompt: "Uma raposa em uma floresta iluminada por vaga-lumes, ilustração digital",
+      negative_prompt: "texto, marca d'água, imagem borrada"
+    },
+    params: [
+      TOKEN_PARAM,
+      { name: "prompt", type: "text", required: true, description: "Descrição positiva da imagem que deseja gerar." },
+      { name: "negative_prompt", type: "text", required: false, description: "Características que deseja reduzir ou evitar. O efeito depende do modelo." },
+      { name: "width", type: "number", required: false, description: "Largura em pixels (padrão 512)." },
+      { name: "height", type: "number", required: false, description: "Altura em pixels (padrão 512)." },
+      { name: "steps", type: "number", required: false, description: "Número de etapas de geração." },
+    ]
+  },
   {
     slug: ["text-ai", "gpt"],
     section: "Text AI",
@@ -580,33 +623,13 @@ export const DOCS: ApiDoc[] = [
     ]
   },
   {
-    slug: ["pesquisa", "youtube"],
+    slug: ["pesquisa", "youtube_search"],
     section: "Pesquisa",
-    title: "YouTube",
+    title: "YouTube Search",
     description:
       "Pesquisa vídeos no YouTube e retorna título, canal, thumbnail, duração e link em JSON.",
     method: "GET/POST",
     path: "/api/search/youtube",
-    cost: "1 request",
-    preview: "youtube",
-    params: [
-      TOKEN_PARAM,
-      {
-        name: "query",
-        type: "text",
-        required: true,
-        description: "Termo de pesquisa."
-      }
-    ]
-  },
-  {
-    slug: ["pesquisa", "youtube-v2"],
-    section: "Pesquisa",
-    title: "YouTube v2",
-    description:
-      "Pesquisa vídeos no YouTube com metadados adicionais e retorna os resultados em JSON.",
-    method: "GET/POST",
-    path: "/api/search/youtube/v2",
     cost: "1 request",
     preview: "youtube",
     params: [
@@ -661,6 +684,10 @@ export const DOCS: ApiDoc[] = [
 
 export function findDoc(slug: string[]): ApiDoc | undefined {
   const key = slug.join("/");
+
+  if (key === "pesquisa/youtube-v2" || key === "pesquisa/youtube") {
+    return DOCS.find((doc) => doc.slug.join("/") === "pesquisa/youtube_search");
+  }
 
   return DOCS.find((doc) => doc.slug.join("/") === key);
 }

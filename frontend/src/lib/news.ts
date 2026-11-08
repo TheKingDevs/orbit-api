@@ -16,21 +16,18 @@ export const NEWS: NewsEntry[] = [
   {
     date: "7 de novembro de 2026",
     version: APP_VERSION,
-    title: "Novos recursos de IA, downloads e experiência renovada",
+    title: "Novos recursos de IA, downloads e métricas de uso",
     summary:
-      "Versão 2.0.0 com novas APIs de IA e pesquisa, downloads ampliados, documentação interativa, métricas de uso, loading renovado e SEO para compartilhamento.",
+      "Versão 2.0.0 com novas APIs de inteligência artificial, downloads ampliados, pesquisa no YouTube e painel de consumo de requisições.",
     items: [
-      "Novos endpoints de IA: GPT, Groq, Gemini e Shazam, com prévia interativa na documentação.",
-      "Novos downloads: TikTok Imagens, Kwai, Facebook e SoundCloud, além da busca do Pinterest por termo.",
-      "Pesquisa de YouTube (v1 e v2) integrada à API.",
-      "Play Audio e Play Video agora recebem apenas o nome da música/vídeo e retornam a URL de download do áudio ou vídeo.",
-      "YTDL Áudio e YTDL Vídeo para obter o link direto de download a partir de uma URL do YouTube.",
-      "Menu lateral reorganizado em grupos: Text AI, Pesquisa e Ferramentas.",
-      "Painel com métricas de uso da API: requests do dia, consumo diário, endpoints mais usados e histórico de chamadas.",
-      "Documentação com prévias ao vivo para IA, YouTube, Shazam, Pinterest, Kwai, Facebook, SoundCloud e TikTok.",
-      "Novo loading com skeleton, mantendo o shell do app enquanto a sessão é verificada.",
-      "SEO completo para compartilhamento: Open Graph, Twitter Card, imagem de capa com a logo, sitemap, robots e dados estruturados.",
-      "Transcrição com Whisper, Canvas, stickers (TTP, ATTP, Brat e Abrat) e conversão para GIF mantidos e aprimorados."
+      "Novos endpoints de inteligência artificial: GPT, Groq, Gemini e identificação de músicas com Shazam.",
+      "Downloads ampliados com suporte para TikTok (incluindo carrossel de imagens), Kwai, Facebook e SoundCloud.",
+      "Pesquisa no YouTube integrada à API com retorno rápido de vídeos, canais e metadados.",
+      "Play Áudio e Play Vídeo com busca direta pelo nome da música ou vídeo.",
+      "YTDL Áudio e YTDL Vídeo para obter o link direto de download a partir do link do YouTube.",
+      "Menu lateral organizado por categorias para facilitar a navegação.",
+      "Painel com métricas de uso da API: requisições do dia, consumo diário e endpoints mais acessados.",
+      "Ambiente interativo na documentação com prévias ao vivo dos resultados."
     ],
     link: {
       label: "Explorar novos recursos",
@@ -40,32 +37,32 @@ export const NEWS: NewsEntry[] = [
   {
     date: "5 de novembro de 2026",
     version: "1.4.0",
-    title: "Navegação, novidades e nova home",
+    title: "Navegação, novidades e nova página inicial",
     summary:
-      "Atualização focada em organização e experiência de uso da plataforma.",
+      "Atualização focada na organização do painel e melhoria da experiência de uso da plataforma.",
     items: [
-      "Menu lateral reorganizado para deixar as ferramentas mais fáceis de encontrar.",
-      "Nova página de novidades com o histórico de atualizações da plataforma.",
-      "Homepage renovada com recursos, benefícios, passo a passo e perguntas frequentes.",
-      "Prévias da documentação agora têm limite diário próprio e não consomem requisições.",
-      "Copiar a API Key ficou mais simples, mesmo quando a chave está oculta.",
-      "Identidade visual atualizada com a logo oficial da Orbit."
+      "Menu lateral aprimorado para deixar as ferramentas mais fáceis de encontrar.",
+      "Página de novidades com a linha do tempo de atualizações da plataforma.",
+      "Página inicial renovada com apresentação de recursos, benefícios e perguntas frequentes.",
+      "Prévias na documentação com limite diário dedicado sem consumir requisições do plano.",
+      "Cópia rápida da API Key diretamente pelo painel.",
+      "Identidade visual oficial da Orbit atualizada."
     ]
   },
   {
     date: "4 de novembro de 2026",
     version: "1.3.0",
-    title: "Playground de Brat e Abrat",
+    title: "Playground interativo de figurinhas",
     summary:
-      "Os stickers Brat e Abrat agora podem ser personalizados e testados diretamente na documentação.",
+      "Área interativa para personalizar e testar a geração de figurinhas diretamente na documentação.",
     items: [
-      "Personalize texto, cores e alinhamento dos stickers Brat e Abrat.",
-      "Prévia atualizada automaticamente conforme as opções escolhidas.",
-      "Exemplos de uso sincronizados com o playground.",
-      "Melhorias na geração de GIFs animados no Android."
+      "Personalização em tempo real de texto, cores de fundo e alinhamento.",
+      "Prévia visual com atualização instantânea conforme os parâmetros escolhidos.",
+      "Exemplos de requisição sincronizados com as opções do playground.",
+      "Otimização no desempenho de geração de figurinhas animadas."
     ],
     link: {
-      label: "Testar Brat",
+      label: "Testar figurinhas",
       href: "/app/doc/stickers/brat"
     }
   },
@@ -74,12 +71,12 @@ export const NEWS: NewsEntry[] = [
     version: "1.2.0",
     title: "Documentação interativa",
     summary:
-      "Todas as rotas ganharam uma página própria com parâmetros, exemplos e pré-visualização ao vivo.",
+      "Cada rota agora conta com uma página própria contendo parâmetros, exemplos e pré-visualização ao vivo.",
     items: [
-      "Documentação completa para cada recurso, com parâmetros e exemplos.",
-      "Playground dos cartões Bem-vindo e Adeus com avatar, fundo, título e subtítulo.",
-      "Exemplos prontos para copiar, com opção de ocultar ou revelar o token.",
-      "Navegação mais rápida entre as seções da documentação."
+      "Documentação completa para cada recurso com tabela de parâmetros e métodos HTTP.",
+      "Playground dos cartões de boas-vindas e despedida com personalização de imagem e texto.",
+      "Exemplos práticos de código prontos para copiar e integrar.",
+      "Navegação rápida entre as diferentes ferramentas da API."
     ],
     link: {
       label: "Abrir documentação",
@@ -89,17 +86,16 @@ export const NEWS: NewsEntry[] = [
   {
     date: "2 de novembro de 2026",
     version: "1.1.0",
-    title: "Dashboard e identidade",
+    title: "Painel de controle e navegação",
     summary:
-      "Uma nova experiência para gerenciar a API Key, acompanhar o plano e navegar pela plataforma.",
+      "Nova interface para gerenciar a API Key, acompanhar o plano e navegar pela plataforma.",
     items: [
-      "Dashboard com API Key, limite do plano e canal de atualizações.",
-      "Navegação mais moderna e intuitiva, com menu de conta e versão mobile.",
-      "Transições suaves entre páginas e melhorias de acessibilidade.",
-      "Ícones atualizados, incluindo WhatsApp e YouTube na identidade da Orbit."
+      "Painel com chave de API, limite do plano contratado e canal de suporte.",
+      "Navegação intuitiva com menu de perfil e suporte otimizado a dispositivos móveis.",
+      "Transições fluidas entre páginas e melhorias de usabilidade."
     ],
     link: {
-      label: "Abrir dashboard",
+      label: "Abrir painel",
       href: "/app"
     }
   },
@@ -108,13 +104,14 @@ export const NEWS: NewsEntry[] = [
     version: "1.0.0",
     title: "Lançamento da Orbit API",
     summary:
-      "A base da plataforma: autenticação, API Keys e os primeiros recursos prontos para bots e automações.",
+      "A base da plataforma: autenticação segura, gerenciamento de chaves e os primeiros endpoints prontos para uso.",
     items: [
-      "Login com Google, sessões seguras e gerenciamento de API Keys.",
-      "Downloads de Instagram, Pinterest, TikTok e YouTube para áudio e vídeo.",
-      "Canvas com cartões de boas-vindas, despedida e efeitos em imagens.",
-      "Stickers TTP, ATTP, Brat e Abrat, transcrição com IA e conversão para GIF.",
-      "Planos Free, Basic e Gold com controle de requisições e limites diários."
+      "Autenticação com Google e gerenciamento de chaves de API.",
+      "Downloads de mídias de redes sociais para áudio e vídeo.",
+      "Criação de imagens personalizadas para cartões e efeitos.",
+      "Geração de figurinhas estáticas e animadas a partir de texto.",
+      "Transcrição de áudio com inteligência artificial e conversão de mídias.",
+      "Planos Free, Basic e Gold com limites ajustados para diferentes necessidades."
     ]
   }
 ];

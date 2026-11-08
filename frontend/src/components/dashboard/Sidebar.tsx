@@ -33,7 +33,7 @@ const API_ITEMS: NavItem[] = [
   { label: "Canvas", icon: "image", children: linksFor("canvas") },
   { label: "Downloads", icon: "download", children: linksFor("downloads") },
   { label: "Ferramentas", icon: "gear", children: linksFor("ferramentas") },
-  { label: "Image AI", icon: "sparkles", slug: ["image-ai"] },
+  { label: "Image AI", icon: "sparkles", children: linksFor("image-ai") },
   { label: "Pesquisa", icon: "search", children: linksFor("pesquisa") },
   { label: "Stickers", icon: "sticker", children: linksFor("stickers") },
   { label: "Text AI", icon: "text", children: linksFor("text-ai") },
@@ -88,6 +88,9 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
   const displayName = user?.name?.trim() || user?.email?.split("@")[0] || "Usuário";
   const initial = displayName.slice(0, 1).toUpperCase();
+  const visibleMiscItems: NavItem[] = user?.role === "admin" || user?.role === "owner"
+    ? [...MISC_ITEMS, { label: "Administração", icon: "gear", href: "/app/admin" }]
+    : MISC_ITEMS;
 
   function isActive(slug: string[]): boolean {
     return pathname === slugHref(slug);
@@ -227,7 +230,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
           <p className="px-3 pb-2 pt-6 text-xs font-semibold text-zinc-500">Outros</p>
           <ul className="space-y-0.5">
-            {MISC_ITEMS.map((item) => renderDirectLink(item))}
+            {visibleMiscItems.map((item) => renderDirectLink(item))}
           </ul>
         </nav>
 

@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  experimental: {
+    proxyTimeout: 1_800_000,
+  },
   async redirects() {
     return [
       {

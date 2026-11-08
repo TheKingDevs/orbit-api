@@ -22,7 +22,7 @@ O frontend encaminha `/api`, `/storage`, `/preview/ttp` e os assets necessários
 
 ## Funcionalidades
 
-- Downloads de Instagram, TikTok (vídeo, áudio e imagens/slides), Pinterest (URL ou pesquisa), YouTube, Kwai, Facebook e SoundCloud.
+- Downloads de Instagram, TikTok (vídeo, áudio e imagens/slides), Pinterest (URL ou pesquisa), YouTube, Facebook e SoundCloud.
 - Inteligência artificial com GPT, Groq, Gemini e identificação musical com Shazam.
 - Pesquisas de YouTube (`v1` e `v2`) e wallpapers.
 - Geração de cards e imagens com Canvas (`welcome`, `goodbye`, `ttp`, `attp` e efeitos).
@@ -75,42 +75,39 @@ Diagramas adicionais:
 | Camada | Tecnologias |
 | --- | --- |
 | Frontend | Next.js 16, React 19, Tailwind CSS 4, TypeScript |
-| Backend | Bun, TypeScript, `@napi-rs/canvas`, `ffmpeg`, `sherpa-onnx`, `jose`, `zod` |
+| Backend | Bun, TypeScript, `@napi-rs/canvas`, `ffmpeg`, `yt-dlp`, Deno, `sherpa-onnx`, `jose`, `zod` |
 | Infraestrutura | GitHub, Render, Vercel |
 | Integrações | Google OAuth, Hugging Face |
 
 ## Estrutura do repositório
 
-```text
-orbit-api/
-├── backend/
-│   ├── src/
-│   │   ├── routes/
-│   │   ├── services/
-│   │   ├── middlewares/
-│   │   └── utils/
-│   ├── assets/fonts/
-│   ├── storage/
-│   └── render.yaml
-├── frontend/
-│   ├── src/app/
-│   ├── src/components/
-│   ├── src/lib/
-│   └── public/
-├── assets/
-│   ├── images/
-│   └── diagrams/
-├── scripts/
-├── Makefile
-├── CONTRIBUTING.md
-└── LICENSE
-```
+- 📁 `backend` ➔ _API REST Bun; estrutura detalhada em [`backend/README.md`](backend/README.md)_
+  - 📁 `src/routes` ➔ _endpoints públicos, API, administração e owner_
+  - 📁 `src/services` ➔ _downloads, IA, sessões, MongoDB, storage, canvas e transcrição_
+  - 📁 `assets/fonts` ➔ _fontes para geração de mídia_
+  - 📁 `models/whisper-tiny` ➔ _arquivos do modelo local de transcrição_
+  - 📁 `storage` ➔ _mídias temporárias de execução_
+  - 📝 `Dockerfile` e `render.yaml` ➔ _imagem e configuração de deploy do backend_
+- 📁 `frontend` ➔ _aplicação Next.js; estrutura detalhada em [`frontend/README.md`](frontend/README.md)_
+  - 📁 `src/app` ➔ _landing page, dashboard, docs, planos e administração_
+  - 📁 `src/components` ➔ _interface, playgrounds e componentes de página_
+  - 📁 `src/lib` ➔ _autenticação, HTTP, catálogo de endpoints, SEO e novidades_
+  - 📁 `public` ➔ _logos e assets públicos_
+- 📁 `assets` ➔ _identidade visual e documentação visual_
+  - 📁 `images` ➔ _logos e imagens_
+  - 📁 `diagrams` ➔ _arquitetura, deploy e fluxo de contribuição_
+- 📁 `scripts` ➔ _scripts de build e deploy_
+- 📝 `Makefile` ➔ _atalhos de desenvolvimento e produção_
+- 📝 `CONTRIBUTING.md` ➔ _guia de contribuição_
+- 📝 `LICENSE` ➔ _termos da licença_
+- 📝 `README.md` ➔ _visão geral do monorepo_
 
 ## Pré-requisitos
 
 - [Bun](https://bun.sh/) instalado (backend).
-- Node.js 20 ou superior e npm (frontend).
-- `ffmpeg` disponível no `PATH` (processamento de imagens).
+- Node.js 20.9 ou superior e npm (frontend).
+- `ffmpeg` disponível no `PATH` para processamento local de mídia.
+- Node.js 22+ ou Deno para extração de mídia do YouTube via yt-dlp (Docker instala Deno).
 - Git.
 - Docker é opcional; o backend possui `backend/Dockerfile`.
 
@@ -137,11 +134,16 @@ Preencha os valores locais. **Nunca versione arquivos `.env`.**
 | `SESSION_TTL_HOURS` / `SESSION_IDLE_MINUTES` / `SESSION_ROTATE_HOURS` | Política de sessão. |
 | `COOKIE_SECURE` | Use `true` em produção com HTTPS. |
 | `OWNER_API_KEY` / `ADMIN_API_KEY` / `PUBLIC_API_KEY` | Chaves de acesso da API. |
-| `CORS_ORIGIN` | Origem permitida para requisições do frontend. |
+| `OWNER_EMAIL` | E-mail reservado ao papel owner; configure no ambiente, sem codificá-lo no projeto. |
+| `CORS_ORIGIN` | Allowlist de origens web cross-origin. Aceita origens HTTP(S) separadas por vírgula, sem caminhos ou curingas; controla CORS, preflight e validação de origem da sessão. |
 | `PUBLIC_BASE_URL` | URL pública usada na geração de links (produção). |
 | `DOCS_PREVIEW_DAILY_LIMIT` | Limite diário de pré-visualizações da documentação. |
 | `MONGO_URI` | Connection string do MongoDB. Obrigatória em produção. |
 | `MONGO_DB_NAME` | Nome do banco de dados MongoDB (padrão: `orbit`). |
+| `DATA_ENCRYPTION_KEY` | Chave Base64 de 32 bytes para criptografia e hashes; gere com `openssl rand -base64 32` e não altere sem migração. |
+| `AIHORDE_API_KEY` | Chave opcional para geração de imagens via AI Horde. |
+| `YTDLP_JS_RUNTIME` | Runtime opcional para yt-dlp; vazio detecta Node 22+ e depois Deno. |
+| `TIKTOK_COOKIES_FILE` | Caminho opcional para cookies Netscape privados quando o TikTok exigir sessão. |
 
 ### Frontend (`frontend/.env`)
 
@@ -158,11 +160,11 @@ Preencha os valores locais. **Nunca versione arquivos `.env`.**
 ```bash
 # backend
 cd backend
-bun install
+bun install --frozen-lockfile
 
 # frontend
 cd ../frontend
-npm install
+npm ci
 ```
 
 ## Desenvolvimento
@@ -231,8 +233,8 @@ npm run build
 - Runtime: Docker.
 - Blueprint: `backend/render.yaml`.
 - Dockerfile: `backend/Dockerfile` (contexto `backend`).
-- A imagem já instala `ffmpeg`, `yt-dlp`, fontes e os modelos Whisper usados pela transcrição.
-- Configure as variáveis de ambiente no painel do Render, principalmente `PUBLIC_BASE_URL`, `CORS_ORIGIN`, `MONGO_URI` e as credenciais OAuth.
+- A imagem instala `ffmpeg`, `yt-dlp`, Deno, fontes e os modelos Whisper usados pela transcrição.
+- Configure as variáveis de ambiente no painel do Render, principalmente `PUBLIC_BASE_URL`, `CORS_ORIGIN`, `FRONTEND_URL`, `BACKEND_URL`, `MONGO_URI`, `DATA_ENCRYPTION_KEY` e as credenciais OAuth.
 - Usuários, sessões e histórico de uso ficam persistidos no MongoDB configurado por `MONGO_URI`.
 - O build filter usa `backend/**`, evitando redeploys causados por mudanças no frontend.
 - Se configurar manualmente pelo painel, use Dockerfile Path `backend/Dockerfile` e Docker Context `backend`.

@@ -1,8 +1,8 @@
-import { authMiddleware } from '@middlewares/authMiddleware';
+import { sessionAuthMiddleware } from '@middlewares/authMiddleware';
 import { db } from '@utils/db.util';
 
 export async function deleteUserRoute(req: Request, url: URL): Promise<Response> {
-  const ownerUser = authMiddleware(req, ['owner']);
+  const ownerUser = sessionAuthMiddleware(req, ['owner']);
   const userIdToDelete = url.searchParams.get('id');
 
   if (!userIdToDelete) {

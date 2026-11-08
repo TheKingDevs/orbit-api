@@ -3,6 +3,7 @@ import { authMiddleware } from '@middlewares/authMiddleware';
 import { ImageSource } from '@services/ffmpeg.service';
 import { StickerDTO, StickerFormat } from '@types/sticker.type';
 import { ValidatorUtil } from '@utils/validator.util';
+import { validateSafeUrl } from '@utils/urlSecurity.util';
 
 const MAX_INPUT_BYTES = 20 * 1024 * 1024;
 const FILE_FIELDS = ['file', 'image', 'photo', 'imagem', 'sticker', 'media'];
@@ -132,6 +133,9 @@ export async function processImageRoute(
   }
 
   const dto = ValidatorUtil.validateStickerPayload(params);
+  if (typeof source === 'string' && !source.startsWith('data:')) {
+    source = dto.url || validateSafeUrl(source, { fieldName: 'url' });
+  }
   const resolved: StickerDTO = {
     ...dto,
     format: dto.format ?? options.defaultFormat,

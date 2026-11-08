@@ -5,6 +5,7 @@ import { parseCookies } from '@utils/cookies.util';
 import { CSRF_COOKIE, SESSION_COOKIE, sessionManager } from '@services/session.service';
 import { markAuthenticatedRequest } from '@services/requestTrace.service';
 import { normalizeBaseUrl } from '@utils/url.util';
+import { getConfiguredCorsOrigins } from '@utils/cors.util';
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const PREVIEW_QUERY = 'docs';
@@ -32,7 +33,11 @@ function assertTrustedOrigin(req: Request): void {
   if (!origin) return;
 
   const allowed = new Set(
-    [normalizeBaseUrl(process.env.FRONTEND_URL), normalizeBaseUrl(process.env.BACKEND_URL)]
+    [
+      normalizeBaseUrl(process.env.FRONTEND_URL),
+      normalizeBaseUrl(process.env.BACKEND_URL),
+      ...getConfiguredCorsOrigins()
+    ]
       .filter((value): value is string => Boolean(value))
   );
 
@@ -45,6 +50,66 @@ function getSessionId(req: Request): string | null {
   return parseCookies(req.headers.get('cookie'))[SESSION_COOKIE] ?? null;
 }
 
+/**
+ * Autenticação estrita por sessão (Cookie).
+ * Utilizada exclusivamente em rotas de usuário/painel (key, usage, balance),
+ * e rotas de administração (admin, owner).
+ * A API Key (token) NUNCA deve ser aceita para autenticação ou login nessas rotas.
+ */
+export function sessionAuthMiddleware(req: Request, requiredRoles?: UserRole[]): User {
+  const sessionId = getSessionId(req);
+
+  if (!sessionId) {
+    throw new UnauthorizedError('Autenticação necessária. Faça login para continuar.');
+  }
+
+  const authenticated = sessionManager.authenticate(sessionId);
+
+  if (!authenticated) {
+    throw new UnauthorizedError('Sessão expirada ou inválida. Faça login novamente.');
+  }
+
+  if (UNSAFE_METHODS.has(req.method.toUpperCase())) {
+    assertTrustedOrigin(req);
+
+    const csrfToken = req.headers.get('x-csrf-token') ?? '';
+    const csrfCookie = parseCookies(req.headers.get('cookie'))[CSRF_COOKIE] ?? '';
+
+    if (!csrfToken || csrfToken !== csrfCookie || !sessionManager.verifyCsrf(csrfToken, authenticated.record.csrfHash)) {
+      throw new ForbiddenError('Token CSRF inválido ou ausente.');
+    }
+  }
+
+  const sessionUser = db.findById(authenticated.record.userId);
+
+  if (!sessionUser) {
+    sessionManager.destroy(sessionId);
+    throw new UnauthorizedError('Usuário da sessão não encontrado.');
+  }
+
+  if (sessionUser.isSuspended) {
+    throw new ForbiddenError('Esta conta foi suspensa temporariamente.');
+  }
+
+  if (requiredRoles && requiredRoles.length > 0 && !requiredRoles.includes(sessionUser.role)) {
+    throw new ForbiddenError(`Seu cargo (${sessionUser.role}) não possui autorização para este recurso.`);
+  }
+
+  return sessionUser;
+}
+
+/**
+ * Middleware para consumo dos recursos da API.
+ * A API Key é destinada exclusivamente para execução das rotas da API (downloads, IA, stickers, etc.).
+ *
+ * Suporta:
+ * 1. Sessão ativa via cookie (para pré-visualização e testes pela interface web)
+ * 2. Header `x-apikey` (ou `x-api-key`)
+ * 3. Parâmetro de busca na URL (`apikey` ou `apiKey`)
+ *
+ * Os parâmetros `token` e o header `Authorization: Bearer` foram removidos propositalmente para mitigar vulnerabilidades,
+ * garantindo que a API Key não seja tratada como credencial de autenticação de sessão.
+ */
 export function authMiddleware(req: Request, requiredRoles?: UserRole[], consumeToken: boolean = true): User {
   const sessionId = getSessionId(req);
   const preview = getPreviewState(req);
@@ -81,24 +146,23 @@ export function authMiddleware(req: Request, requiredRoles?: UserRole[], consume
     limiterKey = `session:${authenticated.sessionHash}`;
   } else {
     const url = new URL(req.url);
-    const tokenFromQuery = url.searchParams.get('token');
-    const authHeader = req.headers.get('authorization');
+    const apiKeyFromQuery =
+      url.searchParams.get('apikey') ||
+      url.searchParams.get('apiKey');
 
-    let token = tokenFromQuery;
+    const apiKeyHeader = req.headers.get('x-apikey') || req.headers.get('x-api-key');
 
-    if (!token && authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.slice('Bearer '.length).trim();
-    }
+    const apiKey = apiKeyHeader?.trim() || apiKeyFromQuery?.trim();
 
-    if (!token) {
-      throw new ForbiddenError('Autenticação necessária. Faça login para continuar.');
+    if (!apiKey) {
+      throw new UnauthorizedError('API Key necessária. Envie o header x-apikey ou o parâmetro apikey na URL.');
     }
 
     if (preview.requested) {
       throw new ForbiddenError('A pré-visualização da documentação exige uma sessão autenticada.');
     }
 
-    user = db.validateAndIncrementToken(token, req, consumeToken);
+    user = db.validateAndIncrementApiKey(apiKey, req, consumeToken);
 
     if (requiredRoles && requiredRoles.length > 0 && !requiredRoles.includes(user.role)) {
       throw new ForbiddenError(`Seu cargo (${user.role}) não possui autorização para este recurso.`);

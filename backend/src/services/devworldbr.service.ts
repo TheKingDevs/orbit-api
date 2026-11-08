@@ -3,6 +3,7 @@ import { DangerError, InvalidParameterError } from '@errors/index';
 import { IDevWorldBRService } from '@interface/IDevWorldBR';
 import { Logger } from '@utils/logger';
 import { SdkResponse } from '@types/devworldbr.type';
+import { validateSafeUrl, TrustedPlatform } from '@utils/urlSecurity.util';
 
 const PROMO_KEYS = ['criador', 'whatsapp'] as const;
 
@@ -54,20 +55,9 @@ function requireText(value: string | undefined | null, field: string): string {
   return text;
 }
 
-function requireUrl(value: string | undefined | null, field: string): string {
+function requireUrl(value: string | undefined | null, field: string, platform?: TrustedPlatform): string {
   const text = requireText(value, field);
-
-  try {
-    const parsed = new URL(text);
-
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      throw new Error('unsupported protocol');
-    }
-  } catch {
-    throw new InvalidParameterError(`O parâmetro '${field}' deve ser uma URL válida.`);
-  }
-
-  return text;
+  return validateSafeUrl(text, { platform, fieldName: field });
 }
 
 async function execute(label: string, operation: () => Promise<unknown>): Promise<SdkResponse> {
@@ -79,7 +69,7 @@ async function execute(label: string, operation: () => Promise<unknown>): Promis
     if (error instanceof InvalidParameterError) throw error;
 
     Logger.error(`Falha em ${label}: ${error.message}`, 'DevWorldBR');
-    throw new DangerError(`Falha ao executar ${label}: ${error.message}`, 502);
+    throw new DangerError(`Falha ao executar ${label}: Ocorreu uma falha no serviço.`, 502);
   }
 }
 
@@ -115,28 +105,53 @@ class DevWorldBRService implements IDevWorldBRService {
   }
 
   async tiktokImages(url: string | undefined | null): Promise<SdkResponse> {
-    const link = requireUrl(url, 'url');
-    const response = await execute('tiktok_images', () => dwbr.tiktok_images(link));
-    return normalizeTikTokImages(response);
-  }
+    const link = requireUrl(url, 'url', 'tiktok');
+    try {
+      const response = await execute('tiktok_images', () => dwbr.tiktok_images(link));
+      return normalizeTikTokImages(response);
+    } catch (err: any) {
+      if (err instanceof InvalidParameterError) throw err;
 
-  kwai(url: string | undefined | null): Promise<SdkResponse> {
-    const link = requireUrl(url, 'url');
-    return execute('kwai', () => dwbr.kwaiDl(link));
+      try {
+        const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(link)}`;
+        const res = await fetch(apiUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+          signal: AbortSignal.timeout(25_000)
+        });
+        const json = (await res.json()) as any;
+        if (json.code === 0 && json.data) {
+          const imagens = Array.isArray(json.data.images) && json.data.images.length > 0
+            ? json.data.images
+            : json.data.cover ? [json.data.cover] : [];
+
+          return {
+            status: 200,
+            titulo: json.data.title || '',
+            autor: json.data.author?.nickname || '',
+            imagens
+          };
+        }
+      } catch {}
+
+      throw err;
+    }
   }
 
   pinterest(queryOrUrl: string | undefined | null): Promise<SdkResponse> {
     const value = requireText(queryOrUrl, 'query');
+    if (/^https?:\/\//i.test(value)) {
+      validateSafeUrl(value, { platform: 'pinterest', fieldName: 'url' });
+    }
     return execute('pinterest', () => dwbr.pinterest(value));
   }
 
   facebook(url: string | undefined | null): Promise<SdkResponse> {
-    const link = requireUrl(url, 'url');
+    const link = requireUrl(url, 'url', 'facebook');
     return execute('facebook', () => dwbr.facebookDl(link));
   }
 
   soundcloud(url: string | undefined | null): Promise<SdkResponse> {
-    const link = requireUrl(url, 'url');
+    const link = requireUrl(url, 'url', 'soundcloud');
     return execute('soundcloud', () => dwbr.soundcloudDl(link));
   }
 }

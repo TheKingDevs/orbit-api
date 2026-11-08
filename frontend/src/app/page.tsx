@@ -4,6 +4,7 @@ import CurrentYear from "@components/landing/CurrentYear";
 import LandingHeader from "@components/landing/LandingHeader";
 import OrbitLogo from "@components/landing/OrbitLogo";
 import { Icon, type IconName } from "@components/dashboard/icons";
+import { DOCS } from "@lib/docs";
 import {
   SITE_DESCRIPTION,
   SITE_NAME,
@@ -33,7 +34,7 @@ const FEATURES: Feature[] = [
     icon: "download",
     title: "Downloads",
     description:
-      "Instagram, Pinterest, TikTok, Kwai, Facebook, SoundCloud, Play e YouTube com áudio e vídeo prontos para o seu bot.",
+      "Instagram, Pinterest, TikTok, Facebook, SoundCloud, Play e YouTube com áudio e vídeo prontos para o seu bot.",
     href: "/app/doc/downloads/instagram",
     tone: "border-violet-400/20 bg-violet-400/10 text-violet-300",
   },
@@ -110,9 +111,12 @@ const BENEFITS: {
   },
 ];
 
+const activeDocs = DOCS.filter((d) => !d.comingSoon);
+const categoriesCount = new Set(activeDocs.map((d) => d.section)).size;
+
 const STATS = [
-  { value: "27", label: "endpoints disponíveis" },
-  { value: "8", label: "categorias de API" },
+  { value: String(activeDocs.length), label: "endpoints disponíveis" },
+  { value: String(categoriesCount), label: "categorias de API" },
   { value: "100", label: "requisições grátis por dia" },
   { value: "1", label: "chave para tudo" },
 ];
@@ -126,7 +130,7 @@ const STEPS = [
   {
     title: "Copie sua API Key",
     description:
-      "Sua chave fica disponível no dashboard e pode ser enviada no header Authorization.",
+      "Sua chave fica disponível no dashboard e pode ser enviada no header x-apikey ou na URL.",
   },
   {
     title: "Faça a primeira chamada",
@@ -144,12 +148,12 @@ const FAQ = [
   {
     question: "Como envio minha API Key?",
     answer:
-      "Envie o header Authorization com o valor Bearer SUA_API_KEY. Também é possível usar o parâmetro token na URL para testes rápidos.",
+      "Envie o header x-apikey com a sua chave de API. Também é possível usar o parâmetro apikey na URL para testes rápidos.",
   },
   {
     question: "Quais serviços estão disponíveis hoje?",
     answer:
-      "Downloads de Instagram, Pinterest, TikTok, Kwai, Facebook, SoundCloud e Play, IA com GPT, Groq, Gemini e Shazam, pesquisa de YouTube, transcrição de áudio, Canvas, stickers TTP, ATTP, Brat e Abrat, além da conversão para GIF.",
+      "Downloads de Instagram, Pinterest, TikTok, Facebook, SoundCloud e Play, IA com GPT, Groq, Gemini e Shazam, pesquisa de YouTube, transcrição de áudio, Canvas, stickers TTP, ATTP, Brat e Abrat, além da conversão para GIF.",
   },
   {
     question: "A documentação tem exemplos prontos?",
@@ -198,7 +202,7 @@ const structuredData = {
         description: "Plano Free com 100 requisições por dia"
       },
       featureList: [
-        "Downloads de Instagram, Pinterest, TikTok, Kwai, Facebook e SoundCloud",
+        "Downloads de Instagram, Pinterest, TikTok, Facebook e SoundCloud",
         "Inteligência artificial com GPT, Groq, Gemini e Shazam",
         "Pesquisa de YouTube (v1 e v2)",
         "Canvas, stickers e utilitários",

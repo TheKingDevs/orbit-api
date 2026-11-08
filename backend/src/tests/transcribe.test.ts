@@ -6,6 +6,7 @@ import { InvalidParameterError } from '@errors/index';
 import { ITranscriptionEngine } from '@interface/ITranscription';
 import { transcribeRoute } from '@routes/api/transcribe';
 import { publicWelcomeRoute } from '@routes/public/welcome';
+import { db } from '@utils/db.util';
 import { TranscriptionService, TranscriptionServiceImpl } from '@services/transcription.service';
 import { TranscribeLanguage, TranscriptionResult } from '@types/transcribe.type';
 import { ValidatorUtil } from '@utils/validator.util';
@@ -149,6 +150,7 @@ describe('Endpoint /api/transcribe', () => {
   });
 
   test('POST multipart retorna JSON de transcrição', async () => {
+    const apiKey = db.getAllUsers().find(u => u.role === 'public')?.apiKey || process.env.PUBLIC_API_KEY || 'public-token';
     const original = TranscriptionService.transcribe;
     const mocked: TranscriptionResult = {
       text: 'olá mundo',
@@ -164,7 +166,7 @@ describe('Endpoint /api/transcribe', () => {
       form.set('file', new File([new Uint8Array([1, 2, 3])], 'audio.mp3', { type: 'audio/mpeg' }));
       form.set('language', 'en');
 
-      const req = new Request('http://localhost/api/transcribe?token=public-token', {
+      const req = new Request(`http://localhost/api/transcribe?apikey=${apiKey}`, {
         method: 'POST',
         body: form
       });
@@ -184,6 +186,7 @@ describe('Endpoint /api/transcribe', () => {
   });
 
   test('POST com corpo bruto audio/mpeg também é aceito', async () => {
+    const apiKey = db.getAllUsers().find(u => u.role === 'public')?.apiKey || process.env.PUBLIC_API_KEY || 'public-token';
     const original = TranscriptionService.transcribe;
     const mocked: TranscriptionResult = {
       text: 'áudio bruto',
@@ -195,7 +198,7 @@ describe('Endpoint /api/transcribe', () => {
     TranscriptionService.transcribe = async () => mocked;
 
     try {
-      const req = new Request('http://localhost/api/transcribe?token=public-token&language=pt', {
+      const req = new Request(`http://localhost/api/transcribe?apikey=${apiKey}&language=pt`, {
         method: 'POST',
         headers: {
           'content-type': 'audio/mpeg',
@@ -215,7 +218,8 @@ describe('Endpoint /api/transcribe', () => {
   });
 
   test('POST multipart sem arquivo retorna erro de validação', async () => {
-    const req = new Request('http://localhost/api/transcribe?token=public-token', {
+    const apiKey = db.getAllUsers().find(u => u.role === 'public')?.apiKey || process.env.PUBLIC_API_KEY || 'public-token';
+    const req = new Request(`http://localhost/api/transcribe?apikey=${apiKey}`, {
       method: 'POST',
       body: new FormData()
     });
@@ -230,7 +234,6 @@ describe('Endpoint /api/transcribe', () => {
 
     expect(data.endpoints.canvas_ttp).toContain('/api/canvas/ttp');
     expect(data.endpoints.canvas_attp).toContain('/api/canvas/attp');
-    expect(data.endpoints.ttp_preview).toBe('/preview/ttp');
     expect(data.endpoints.transcribe).toContain('/api/transcribe');
   });
 });

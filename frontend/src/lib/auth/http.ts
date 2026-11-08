@@ -65,9 +65,19 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   }
 
   const contentType = response.headers.get("content-type") ?? "";
-  const payload = contentType.includes("application/json")
-    ? await response.json().catch(() => null)
-    : null;
+
+  if (!contentType.includes("application/json")) {
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      throw new ApiError(errorText || "Falha na requisição.", response.status);
+    }
+
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    return { blobUrl, contentType, size: blob.size } as T;
+  }
+
+  const payload = await response.json().catch(() => null);
 
   if (!response.ok) {
     throw new ApiError(

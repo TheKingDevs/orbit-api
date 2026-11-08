@@ -1,6 +1,9 @@
 import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs';
 import { extname, join, resolve } from 'path';
 import { randomUUID } from 'crypto';
+import { validateSafeUrl } from '@utils/urlSecurity.util';
+import { WarningError } from '@errors/index';
+import { isYtDlpSearchQuery, ytDlpRuntimeArgs } from '@utils/ytDlp.util';
 
 export type MediaType = 'video' | 'audio' | 'image' | 'gif';
 
@@ -16,6 +19,12 @@ export interface YtDlpDownloadResult {
   title?: string;
   duration?: number;
   author?: string;
+  thumbnail?: string;
+}
+
+export interface RemoteMediaReference {
+  url: string;
+  mediaType: MediaType;
 }
 
 const STORAGE_TTL_MS = 30 * 60 * 1000;
@@ -88,6 +97,37 @@ class StorageService {
     return CONTENT_TYPES[extension] || 'application/octet-stream';
   }
 
+  async registerRemote(sourceUrl: string, mediaType: MediaType, suggestedExt?: string): Promise<StoredMedia> {
+    this.ensureDirectory();
+    const safeUrl = validateSafeUrl(sourceUrl);
+    const extension = this.pickExtension(suggestedExt, '', safeUrl, mediaType);
+    const filename = `${this.createId()}.${extension}`;
+    const filePath = join(this.directory, filename);
+    const referencePath = `${filePath}.ref`;
+    await Bun.write(referencePath, JSON.stringify({ url: safeUrl, mediaType }));
+    this.scheduleCleanup(referencePath);
+
+    return { filename, path: filePath, extension, mediaType };
+  }
+
+  async resolveRemote(filename: string): Promise<RemoteMediaReference | undefined> {
+    const filePath = this.resolveFile(filename);
+    if (!filePath) return undefined;
+
+    const referenceFile = Bun.file(`${filePath}.ref`);
+    if (!(await referenceFile.exists())) return undefined;
+
+    try {
+      const reference = await referenceFile.json() as Partial<RemoteMediaReference>;
+      if (typeof reference.url !== 'string') return undefined;
+      const mediaType = reference.mediaType;
+      if (!mediaType || !['video', 'audio', 'image', 'gif'].includes(mediaType)) return undefined;
+      return { url: validateSafeUrl(reference.url), mediaType };
+    } catch {
+      return undefined;
+    }
+  }
+
   scheduleCleanup(filePath: string, ttlMs: number = STORAGE_TTL_MS): void {
     const timer = setTimeout(() => this.remove(filePath), ttlMs);
     timer.unref?.();
@@ -145,13 +185,20 @@ class StorageService {
     };
   }
 
-  async saveFromUrl(sourceUrl: string, mediaType: MediaType, suggestedExt?: string): Promise<StoredMedia> {
+  async saveFromUrl(
+    sourceUrl: string,
+    mediaType: MediaType,
+    suggestedExt?: string,
+    requestHeaders: Record<string, string> = {}
+  ): Promise<StoredMedia> {
     this.ensureDirectory();
+    const safeUrl = validateSafeUrl(sourceUrl);
 
-    const response = await fetch(sourceUrl, {
+    const response = await fetch(safeUrl, {
       headers: {
         'User-Agent': USER_AGENT,
-        'Accept': '*/*'
+        'Accept': '*/*',
+        ...requestHeaders
       },
       signal: AbortSignal.timeout(120_000)
     });
@@ -161,7 +208,14 @@ class StorageService {
     }
 
     const contentType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-    const extension = this.pickExtension(suggestedExt, contentType, sourceUrl, mediaType);
+    if (
+      ['video', 'audio'].includes(mediaType) &&
+      (contentType.startsWith('text/') || contentType === 'application/json' || contentType.endsWith('+json'))
+    ) {
+      await response.body?.cancel();
+      throw new Error(`A origem retornou ${contentType || 'conteúdo inválido'} em vez de um arquivo de mídia.`);
+    }
+    const extension = this.pickExtension(suggestedExt, contentType, safeUrl, mediaType);
     const id = this.createId();
     const filename = `${id}.${extension}`;
     const filePath = join(this.directory, filename);
@@ -179,36 +233,50 @@ class StorageService {
 
   async saveWithYtDlp(url: string, type: 'video' | 'audio'): Promise<YtDlpDownloadResult> {
     this.ensureDirectory();
+    const isSearch = isYtDlpSearchQuery(url);
 
     const id = this.createId();
     const outputTemplate = join(this.directory, `${id}.%(ext)s`);
     const ffmpegAvailable = Boolean(Bun.which('ffmpeg'));
-    const args = ['yt-dlp', '--no-playlist', '--no-progress', '--print-json'];
+    const args = [
+      'yt-dlp', ...ytDlpRuntimeArgs(), ...(isSearch ? ['--ignore-errors', '--playlist-end', '5', '--max-downloads', '1'] : ['--no-playlist']), '--no-progress', '--output-na-placeholder', 'null', '--print',
+      '{"title":%(title)j,"duration":%(duration)j,"uploader":%(uploader)j,"thumbnail":%(thumbnail)j,"ext":%(ext)j}'
+    ];
+    if (/tiktok\.com/i.test(url)) {
+      args.push('--referer', 'https://www.tiktok.com/', '--user-agent', USER_AGENT);
+      const cookiesFile = process.env.TIKTOK_COOKIES_FILE?.trim();
+      if (cookiesFile && existsSync(cookiesFile)) args.push('--cookies', cookiesFile);
+    }
 
     if (type === 'video') {
       if (ffmpegAvailable) {
         args.push(
-          '-f', 'bv*[vcodec^=avc1]+ba[acodec^=mp4a]/bv*+ba/b',
+          '-f', 'bv*[height<=1080][vcodec^=avc1]+ba[acodec^=mp4a]/bv*[height<=1080]+ba/b[height<=1080]/bv*+ba/b',
           '--merge-output-format', 'mp4',
           '--remux-video', 'mp4'
         );
       } else {
-        args.push('-f', 'b[acodec!=none][vcodec!=none]/b');
+        args.push('-f', 'b[height<=1080][acodec!=none][vcodec!=none]/b');
       }
-    } else if (ffmpegAvailable) {
-      args.push('-f', 'bestaudio/best', '-x', '--audio-format', 'm4a');
     } else {
-      args.push('-f', 'bestaudio/best');
+      args.push('-f', 'bestaudio[ext=m4a]/bestaudio/best');
     }
 
-    args.push('-o', outputTemplate, url);
+    const safeUrl = isYtDlpSearchQuery(url) ? url : validateSafeUrl(url);
+    args.push('-o', outputTemplate, safeUrl);
 
     const proc = Bun.spawn(args, { stdout: 'pipe', stderr: 'pipe' });
-    const timeout = setTimeout(() => proc.kill(), DOWNLOAD_TIMEOUT_MS);
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      proc.kill();
+    }, DOWNLOAD_TIMEOUT_MS);
     timeout.unref?.();
 
-    const output = await new Response(proc.stdout).text();
-    const errorOutput = await new Response(proc.stderr).text();
+    const [output, errorOutput] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text()
+    ]);
     const exitCode = await proc.exited;
     clearTimeout(timeout);
 
@@ -216,7 +284,12 @@ class StorageService {
 
     if (exitCode !== 0 || !media) {
       this.removeByPrefix(id);
-      throw new Error(errorOutput.trim() || 'Falha ao baixar a mídia.');
+      throw new WarningError(
+        timedOut
+          ? 'O download excedeu o tempo limite. Tente novamente.'
+          : errorOutput.trim() || (exitCode === 0 ? 'O extrator terminou sem gerar um arquivo de mídia.' : 'Falha ao baixar a mídia.'),
+        timedOut ? 504 : 502
+      );
     }
 
     media.mediaType = type;
@@ -243,11 +316,20 @@ class StorageService {
       }
     }
 
+    let thumbnail = info?.thumbnail;
+    if (!thumbnail && Array.isArray(info?.thumbnails) && info.thumbnails.length > 0) {
+      thumbnail = info.thumbnails[info.thumbnails.length - 1]?.url;
+    }
+    if (!thumbnail && info?.id) {
+      thumbnail = `https://i.ytimg.com/vi/${info.id}/hqdefault.jpg`;
+    }
+
     return {
       media,
       title: info?.title,
       duration: info?.duration,
-      author: info?.uploader || info?.channel
+      author: info?.uploader || info?.channel,
+      thumbnail
     };
   }
 
@@ -302,7 +384,7 @@ class StorageService {
     for (const name of readdirSync(this.directory)) {
       const extension = extname(name).slice(1).toLowerCase();
 
-      if (!MEDIA_EXTENSIONS.has(extension) && !name.endsWith('.part')) continue;
+      if (!MEDIA_EXTENSIONS.has(extension) && !name.endsWith('.part') && !name.endsWith('.ref')) continue;
 
       const filePath = join(this.directory, name);
 

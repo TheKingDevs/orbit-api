@@ -3,11 +3,14 @@ import { DownloadContext, DownloadRequestDTO, DownloadResponseDTO } from '@types
 import { WarningError, DangerError } from '@errors/index';
 import { Logger } from '@utils/logger';
 import { MediaType, StoredMedia, storageService } from '@services/storage.service';
+import { validateSafeUrl, TrustedPlatform } from '@utils/urlSecurity.util';
+import { isYtDlpSearchQuery, ytDlpRuntimeArgs } from '@utils/ytDlp.util';
 
 interface MediaMetadata {
   title?: string;
   duration?: number;
   author?: string;
+  thumbnail?: string;
 }
 
 interface ResolvedMedia {
@@ -23,30 +26,101 @@ class BaseDownloaderService implements IDownloaderService {
       const baseUrl = (context?.baseUrl || process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
       const { url, platform, type } = dto;
 
+      const searchQuery = Boolean(url && platform === 'youtube' && isYtDlpSearchQuery(url));
+      if (url && !searchQuery) {
+        validateSafeUrl(url, { platform: platform as TrustedPlatform, fieldName: 'url' });
+      }
+
       let stored: StoredMedia;
       let metadata: MediaMetadata;
 
       if (type === 'video' || type === 'audio') {
+        if (platform === 'tiktok') {
+          try {
+            const downloaded = await storageService.saveWithYtDlp(url || '', type);
+            stored = downloaded.media;
+            metadata = {
+              title: downloaded.title || 'TikTok Media',
+              duration: downloaded.duration || 0,
+              author: downloaded.author || 'TikTok',
+              thumbnail: downloaded.thumbnail
+            };
+          } catch (ytDlpError) {
+            Logger.warning(`Download via yt-dlp falhou (${ytDlpError instanceof Error ? ytDlpError.message : String(ytDlpError)}); tentando TikWM.`, 'TikTokDownloader');
+            const tikwmMedia = await this.resolveTikTokMedia(url || '', type);
+            if (!tikwmMedia) throw ytDlpError;
+            try {
+              stored = await storageService.saveFromUrl(
+                tikwmMedia.directUrl,
+                tikwmMedia.mediaType,
+                tikwmMedia.suggestedExt,
+                { Referer: 'https://www.tikwm.com/', Origin: 'https://www.tikwm.com' }
+              );
+              metadata = tikwmMedia.metadata;
+            } catch (tikwmError) {
+              Logger.warning(`Download via TikWM falhou (${tikwmError instanceof Error ? tikwmError.message : String(tikwmError)}).`, 'TikTokDownloader');
+              throw new WarningError('Não foi possível baixar este vídeo do TikTok agora. Tente novamente mais tarde ou use outro link público.', 502);
+            }
+          }
+
+          return {
+            success: true,
+            message: this.successMessage(stored.mediaType),
+            mediaType: stored.mediaType,
+            downloadUrl: `${baseUrl}/storage/${stored.filename}`,
+            thumbnail: metadata.thumbnail,
+            metadata: {
+              title: metadata.title || 'TikTok Media',
+              duration: metadata.duration || 0,
+              author: metadata.author || 'TikTok',
+              thumbnail: metadata.thumbnail
+            }
+          };
+        }
+
         const pinterestMedia = platform === 'pinterest'
           ? await this.resolvePinterestMedia(url, type)
           : undefined;
+        let resolved: ResolvedMedia;
+        try {
+          resolved = pinterestMedia ?? await this.resolveWithYtDlp(url, type, platform);
+        } catch (resolutionError) {
+          const errorMessage = resolutionError instanceof Error ? resolutionError.message : String(resolutionError);
+          const youtubeUrl = Boolean(url && /(?:youtube\.com|youtu\.be)/i.test(url));
+          if (type !== 'video' || !(platform === 'youtube' || youtubeUrl) || !/requested format is not available/i.test(errorMessage)) {
+            throw resolutionError;
+          }
 
-        if (pinterestMedia) {
-          stored = await storageService.saveFromUrl(
-            pinterestMedia.directUrl,
-            pinterestMedia.mediaType,
-            pinterestMedia.suggestedExt
-          );
-          metadata = pinterestMedia.metadata;
-        } else {
-          const downloaded = await storageService.saveWithYtDlp(url, type);
-          stored = downloaded.media;
-          metadata = {
-            title: downloaded.title || `${platform} Media`,
+          const downloaded = await storageService.saveWithYtDlp(url, 'video');
+          const metadata = {
+            title: downloaded.title || 'YouTube Video',
             duration: downloaded.duration || 0,
-            author: downloaded.author || platform
+            author: downloaded.author || 'YouTube',
+            thumbnail: downloaded.thumbnail
+          };
+          return {
+            success: true,
+            message: this.successMessage('video'),
+            mediaType: 'video',
+            downloadUrl: `${baseUrl}/storage/${downloaded.media.filename}`,
+            thumbnail: metadata.thumbnail,
+            metadata
           };
         }
+        const reference = await storageService.registerRemote(resolved.directUrl, resolved.mediaType, resolved.suggestedExt);
+        return {
+          success: true,
+          message: this.successMessage(resolved.mediaType),
+          mediaType: resolved.mediaType,
+          downloadUrl: `${baseUrl}/storage/${reference.filename}`,
+          thumbnail: resolved.metadata.thumbnail,
+          metadata: {
+            title: resolved.metadata.title || `${platform} Media`,
+            duration: resolved.metadata.duration || 0,
+            author: resolved.metadata.author || platform,
+            thumbnail: resolved.metadata.thumbnail
+          }
+        };
       } else {
         const resolved = platform === 'pinterest'
           ? (await this.resolvePinterestMedia(url, type)) || (await this.resolveWithYtDlp(url, type, platform))
@@ -61,10 +135,12 @@ class BaseDownloaderService implements IDownloaderService {
         message: this.successMessage(stored.mediaType),
         mediaType: stored.mediaType,
         downloadUrl: `${baseUrl}/storage/${stored.filename}`,
+        thumbnail: metadata.thumbnail,
         metadata: {
           title: metadata.title || `${platform} Media`,
           duration: metadata.duration || 0,
-          author: metadata.author || platform
+          author: metadata.author || platform,
+          thumbnail: metadata.thumbnail
         }
       };
     } catch (error: any) {
@@ -81,6 +157,8 @@ class BaseDownloaderService implements IDownloaderService {
         throw new Error('URL é obrigatória para resolução de mídia.');
       }
 
+      validateSafeUrl(url, { platform: platform as TrustedPlatform, fieldName: 'url' });
+
       const resolved = await this.resolveWithYtDlp(url, type, platform);
 
       return {
@@ -96,8 +174,8 @@ class BaseDownloaderService implements IDownloaderService {
   }
 
   private successMessage(mediaType: MediaType): string {
-    if (mediaType === 'video') return 'video baixado com sucesso!';
-    if (mediaType === 'audio') return 'áudio baixado com sucesso!';
+    if (mediaType === 'video') return 'link do vídeo pronto para baixar!';
+    if (mediaType === 'audio') return 'link do áudio pronto para baixar!';
     if (mediaType === 'gif') return 'gif baixado com sucesso!';
     return 'imagem baixada com sucesso!';
   }
@@ -110,7 +188,8 @@ class BaseDownloaderService implements IDownloaderService {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
-        }
+        },
+        signal: AbortSignal.timeout(8_000)
       });
 
       const html = await res.text();
@@ -162,34 +241,131 @@ class BaseDownloaderService implements IDownloaderService {
     }
   }
 
+  private async resolveTikTokMedia(url: string, type: string): Promise<ResolvedMedia | undefined> {
+    try {
+      if (/^https?:\/\/(?:vm|vt)\.tiktok\.com\//i.test(url)) {
+        await new Promise(resolve => setTimeout(resolve, 3_000));
+      }
+      const res = await fetch('https://www.tikwm.com/api/', {
+        method: 'POST',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Referer': 'https://www.tikwm.com/',
+          'Origin': 'https://www.tikwm.com'
+        },
+        body: new URLSearchParams({ url, hd: '1' }),
+        signal: AbortSignal.timeout(8_000)
+      });
+      const json = (await res.json()) as any;
+      if (json.code === 0 && json.data) {
+        const cover = json.data.cover || json.data.origin_cover || json.data.music_info?.cover;
+        if (type === 'audio') {
+          return {
+            mediaType: 'audio',
+            directUrl: json.data.music,
+            suggestedExt: 'mp3',
+            metadata: {
+              title: json.data.music_info?.title || json.data.title || 'TikTok Audio',
+              duration: json.data.music_info?.duration || json.data.duration || 0,
+              author: json.data.music_info?.author || json.data.author?.nickname || 'TikTok',
+              thumbnail: cover
+            }
+          };
+        }
+
+        const videoUrl = json.data.play || json.data.wmplay;
+        if (videoUrl) {
+          return {
+            mediaType: 'video',
+            directUrl: videoUrl,
+            suggestedExt: 'mp4',
+            metadata: {
+              title: json.data.title || 'TikTok Video',
+              duration: json.data.duration || 0,
+              author: json.data.author?.nickname || 'TikTok',
+              thumbnail: cover
+            }
+          };
+        }
+      }
+    } catch (err: any) {
+      Logger.warning(`Fallback TikWM falhou (${err.message})`, 'TikTokDownloader');
+    }
+    return undefined;
+  }
+
   private async resolveWithYtDlp(url: string, type: string, platform: string): Promise<ResolvedMedia> {
-    const args = ['yt-dlp', '--dump-json', '--no-playlist'];
+    const isSearch = isYtDlpSearchQuery(url);
+    const args = [
+      'yt-dlp', ...ytDlpRuntimeArgs(), '--skip-download', '--no-warnings', ...(isSearch ? ['--ignore-errors', '--playlist-end', '5'] : ['--no-playlist']), '--no-check-formats',
+      '--socket-timeout', '20', '--output-na-placeholder', 'null', '--print',
+      '{"url":%(url)j,"title":%(title)j,"duration":%(duration)j,"uploader":%(uploader)j,"thumbnail":%(thumbnail)j,"ext":%(ext)j}'
+    ];
 
     if (type === 'audio') {
       args.push('-f', 'bestaudio/best');
     } else if (type === 'video') {
-      args.push('-f', 'bv*[vcodec^=avc1]+ba[acodec^=mp4a]/bv*+ba/b');
+      const videoFormat = platform === 'youtube'
+        ? 'b[height<=1080][acodec!=none][vcodec!=none]/b[acodec!=none][vcodec!=none]'
+        : 'best';
+      args.push('-f', videoFormat);
     }
 
     args.push(url);
 
     const proc = Bun.spawn(args, { stdout: 'pipe', stderr: 'pipe' });
-    const output = await new Response(proc.stdout).text();
-    const errorOutput = await new Response(proc.stderr).text();
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      proc.kill();
+    }, 45_000);
+    timeout.unref?.();
+    const [output, errorOutput] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text()
+    ]);
+    const exitCode = await proc.exited;
+    clearTimeout(timeout);
 
-    if (proc.exitCode !== 0 && !output) {
-      throw new Error(errorOutput || 'Não foi possível extrair a mídia do link informado.');
+    if (timedOut) {
+      throw new WarningError('A plataforma de origem demorou para responder. Tente novamente em instantes.', 504);
     }
 
-    const info = JSON.parse(output);
-    const formats: any[] = Array.isArray(info.formats) ? info.formats : [];
-    const directUrl = info.url || formats.find(format => format.url)?.url || info.thumbnail;
+    if (exitCode !== 0 && !output) {
+      if (platform === 'tiktok' || url.includes('tiktok.com')) {
+        const fallback = await this.resolveTikTokMedia(url, type);
+        if (fallback) return fallback;
+      }
+      throw new WarningError(errorOutput || 'Não foi possível extrair a mídia do link informado.', 502);
+    }
+
+    let info: Record<string, unknown>;
+    try {
+      info = JSON.parse(output.trim().split('\n').filter(Boolean)[0] || '{}');
+    } catch {
+      throw new WarningError('A plataforma não retornou os dados da mídia em um formato válido.', 502);
+    }
+    const directUrl = typeof info.url === 'string' ? info.url : undefined;
 
     if (!directUrl) {
-      throw new Error('Não foi possível obter a URL de mídia.');
+      throw new WarningError('Não foi possível obter a URL de mídia.', 502);
+    }
+
+    let thumb = typeof info.thumbnail === 'string' ? info.thumbnail : undefined;
+    if (!thumb && (platform === 'youtube' || url.includes('youtu'))) {
+      const ytMatch = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([\w-]{11})/i);
+      if (ytMatch) thumb = `https://i.ytimg.com/vi/${ytMatch[1]}/hqdefault.jpg`;
     }
 
     const ext = String(info.ext || '').toLowerCase();
+    const title = typeof info.title === 'string' ? info.title : `${platform} Media`;
+    const author = typeof info.uploader === 'string'
+      ? info.uploader
+      : typeof info.channel === 'string'
+        ? info.channel
+        : platform;
+    const duration = typeof info.duration === 'number' ? info.duration : 0;
     let mediaType: MediaType;
 
     if (type === 'gif' || ext === 'gif') {
@@ -213,9 +389,10 @@ class BaseDownloaderService implements IDownloaderService {
       directUrl,
       suggestedExt: ext || undefined,
       metadata: {
-        title: info.title || `${platform} Media`,
-        duration: info.duration || 0,
-        author: info.uploader || info.channel || platform
+        title,
+        duration,
+        author,
+        thumbnail: thumb
       }
     };
   }
@@ -241,6 +418,12 @@ export class DownloaderService implements IDownloaderService {
             return result;
           };
         }
+        if (prop === 'resolveMediaUrl') {
+          return (dto: DownloadRequestDTO) => serviceTarget.target.resolveMediaUrl(dto);
+        }
+        if (prop in serviceTarget.target && !(prop in serviceTarget)) {
+          return Reflect.get(serviceTarget.target, prop);
+        }
         return Reflect.get(serviceTarget, prop, receiver);
       }
     });
@@ -248,5 +431,9 @@ export class DownloaderService implements IDownloaderService {
 
   async processDownload(dto: DownloadRequestDTO, context?: DownloadContext): Promise<DownloadResponseDTO> {
     return this.target.processDownload(dto, context);
+  }
+
+  async resolveMediaUrl(dto: DownloadRequestDTO): Promise<{ directUrl: string; mediaType: MediaType; suggestedExt?: string; metadata: MediaMetadata }> {
+    return this.target.resolveMediaUrl(dto);
   }
 }

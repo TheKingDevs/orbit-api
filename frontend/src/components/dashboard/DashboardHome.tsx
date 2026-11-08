@@ -184,7 +184,7 @@ export default function DashboardHome({
           <div className="mt-5">
             {label === "Free" ? (
               <Link
-                href="/me"
+                href="/app/planos"
                 className="flex h-12 w-full items-center justify-center rounded-xl border border-violet-400/20 bg-violet-400/[0.08] text-sm font-semibold text-violet-200 transition hover:border-violet-300/40 hover:bg-violet-400/15 hover:text-white"
               >
                 Assine um plano para aumentar seus limites!

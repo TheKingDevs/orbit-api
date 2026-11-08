@@ -10,10 +10,12 @@ function extractFirstVideoUrl(response: unknown): string | undefined {
   const list = Array.isArray(data?.data) ? data.data : Array.isArray(data?.videos) ? data.videos : undefined;
   if (!list || list.length === 0) return undefined;
 
-  const first = list[0];
-  if (typeof first === 'string') return first;
-  if (first && typeof first === 'object') {
-    return first.link ?? first.url ?? first.linkVideo ?? first.videoUrl;
+  const nonLive = list.find((v: any) => v && typeof v === 'object' && v.tipo !== 'live');
+  const target = nonLive || list[0];
+
+  if (typeof target === 'string') return target;
+  if (target && typeof target === 'object') {
+    return target.link ?? target.url ?? target.linkVideo ?? target.videoUrl;
   }
 
   return undefined;

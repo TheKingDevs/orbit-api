@@ -7,6 +7,7 @@ import { normalizeBaseUrl } from '@utils/url.util';
 import { db } from '@utils/db.util';
 import { sessionManager } from '@services/session.service';
 import { closeDatabase, connectDatabase } from '@services/mongo.service';
+import { applyCorsHeaders, handleCorsRequest } from '@middlewares/corsMiddleware';
 
 const port = Number(process.env.PORT) || 3000;
 
@@ -39,24 +40,38 @@ async function start(): Promise<void> {
   const server = Bun.serve({
     port,
     hostname: '0.0.0.0',
-    async fetch(req) {
+    async fetch(req, server) {
       const url = new URL(req.url);
+      if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/storage/')) {
+        const mayMergeFullVideo = url.pathname === '/api/download/play_video' || url.pathname === '/api/download/ytdl_video';
+        server.timeout(req, mayMergeFullVideo ? 0 : 255);
+      }
+
+      const corsResponse = handleCorsRequest(req);
+      if (corsResponse) {
+        corsResponse.headers.set('X-Content-Type-Options', 'nosniff');
+        corsResponse.headers.set('Referrer-Policy', 'no-referrer');
+        return corsResponse;
+      }
+
       try {
         const response = await router(req);
         finalizeAuthenticatedRequest(req, response.status);
-        response.headers.set('X-Content-Type-Options', 'nosniff');
-        response.headers.set('Referrer-Policy', 'no-referrer');
-        return response;
+        const corsResponse = applyCorsHeaders(req, response);
+        corsResponse.headers.set('X-Content-Type-Options', 'nosniff');
+        corsResponse.headers.set('Referrer-Policy', 'no-referrer');
+        return corsResponse;
       } catch (error: any) {
         const statusCode = error instanceof AppError ? error.statusCode : 500;
         const redirect = redirectToError(req, statusCode);
-        if (redirect) return redirect;
+        if (redirect) return applyCorsHeaders(req, redirect);
 
         const response = handleRouteError(error, url.pathname);
         finalizeAuthenticatedRequest(req, response.status);
-        response.headers.set('X-Content-Type-Options', 'nosniff');
-        response.headers.set('Referrer-Policy', 'no-referrer');
-        return response;
+        const corsResponse = applyCorsHeaders(req, response);
+        corsResponse.headers.set('X-Content-Type-Options', 'nosniff');
+        corsResponse.headers.set('Referrer-Policy', 'no-referrer');
+        return corsResponse;
       }
     }
   });

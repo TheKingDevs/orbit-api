@@ -47,6 +47,8 @@ interface UserDocument {
   dailyRequests: number;
   lastResetDate: string;
   violationCount: number;
+  apiKeyHash?: string;
+  apiKeyEnc?: string;
   tokenHash?: string;
   tokenEnc?: string;
   emailHash?: string;
@@ -60,6 +62,7 @@ interface UserDocument {
   docsPreviewCount?: number;
   createdAt?: Date;
   updatedAt?: Date;
+  apiKey?: string;
   token?: string;
   email?: string;
   name?: string;
@@ -69,8 +72,8 @@ interface UserDocument {
 }
 
 interface PersistedUserFields {
-  tokenHash: string;
-  tokenEnc: string;
+  apiKeyHash: string;
+  apiKeyEnc: string;
   emailHash: string;
   emailEnc: string;
   plan: User['plan'];
@@ -89,7 +92,7 @@ interface PersistedUserFields {
 
 type MutableUserFields = Omit<
   PersistedUserFields,
-  'tokenHash' | 'tokenEnc' | 'emailHash' | 'emailEnc' | 'nameEnc' | 'pictureEnc' | 'googleSubjectHash'
+  'apiKeyHash' | 'apiKeyEnc' | 'emailHash' | 'emailEnc' | 'nameEnc' | 'pictureEnc' | 'googleSubjectHash'
 >;
 
 interface RequestRecordDocument {
@@ -106,6 +109,9 @@ const REQUEST_RETENTION_SECONDS = 30 * 24 * 60 * 60;
 
 const LEGACY_USER_FIELDS = {
   token: '',
+  tokenHash: '',
+  tokenEnc: '',
+  apiKey: '',
   email: '',
   name: '',
   picture: '',
@@ -133,10 +139,11 @@ function buildMutableFields(user: User): MutableUserFields {
 }
 
 function buildUserFields(user: User): PersistedUserFields {
+  const key = user.apiKey || user.token || '';
   return {
     ...buildMutableFields(user),
-    tokenHash: hashSensitive(user.token),
-    tokenEnc: encryptSensitive(user.token),
+    apiKeyHash: hashSensitive(key),
+    apiKeyEnc: encryptSensitive(key),
     emailHash: hashEmail(user.email),
     emailEnc: encryptSensitive(user.email),
     ...(user.name !== undefined ? { nameEnc: encryptSensitive(user.name) } : {}),
@@ -148,15 +155,20 @@ function buildUserFields(user: User): PersistedUserFields {
 }
 
 function fromUserDocument(document: UserDocument): User {
-  const token = document.tokenEnc
+  const apiKey = document.apiKeyEnc
+    ? decryptSensitive(document.apiKeyEnc)
+    : document.apiKey
+    ? document.apiKey
+    : document.tokenEnc
     ? decryptSensitive(document.tokenEnc)
     : document.token;
+
   const email = document.emailEnc
     ? decryptSensitive(document.emailEnc)
     : document.email;
 
-  if (!token) {
-    throw new Error(`Token ausente no usuário ${document._id}.`);
+  if (!apiKey) {
+    throw new Error(`API Key ausente no usuário ${document._id}.`);
   }
 
   if (!email) {
@@ -166,7 +178,8 @@ function fromUserDocument(document: UserDocument): User {
   return {
     id: document._id,
     email,
-    token,
+    apiKey,
+    token: apiKey,
     plan: document.plan,
     role: document.role,
     dailyRequests: document.dailyRequests,
@@ -204,8 +217,8 @@ function needsUserMigration(document: UserDocument): boolean {
 
   return (
     hasLegacyField ||
-    !document.tokenHash ||
-    !document.tokenEnc ||
+    !document.apiKeyHash ||
+    !document.apiKeyEnc ||
     !document.emailHash ||
     !document.emailEnc
   );
@@ -234,21 +247,24 @@ class UserDatabase implements IUserService {
 
   private getDefaultSeeds(): User[] {
     const isProduction = process.env.NODE_ENV === 'production';
+    const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
 
     const seeds: User[] = [
-      {
+      ...(ownerEmail ? [{
         id: 'usr-owner-01',
-        email: 'owner@orbit.com',
+        email: ownerEmail,
+        apiKey: process.env.OWNER_API_KEY ?? (isProduction ? '' : 'secret-owner-token'),
         token: process.env.OWNER_API_KEY ?? (isProduction ? '' : 'secret-owner-token'),
-        plan: 'gold',
-        role: 'owner',
+        plan: 'gold' as const,
+        role: 'owner' as const,
         dailyRequests: 0,
         lastResetDate: this.getTodayDateString(),
         violationCount: 0
-      },
+      }] : []),
       {
         id: 'usr-admin-01',
         email: 'admin@orbit.com',
+        apiKey: process.env.ADMIN_API_KEY ?? (isProduction ? '' : 'secret-admin-token'),
         token: process.env.ADMIN_API_KEY ?? (isProduction ? '' : 'secret-admin-token'),
         plan: 'basic',
         role: 'admin',
@@ -259,6 +275,7 @@ class UserDatabase implements IUserService {
       {
         id: 'usr-free-01',
         email: 'user@free.com',
+        apiKey: process.env.PUBLIC_API_KEY ?? (isProduction ? '' : 'public-token'),
         token: process.env.PUBLIC_API_KEY ?? (isProduction ? '' : 'public-token'),
         plan: 'free',
         role: 'public',
@@ -268,7 +285,7 @@ class UserDatabase implements IUserService {
       }
     ];
 
-    return seeds.filter(seed => Boolean(seed.token));
+    return seeds.filter(seed => Boolean(seed.apiKey || seed.token));
   }
 
   private seedDefaultUsersInMemory(): void {
@@ -279,7 +296,10 @@ class UserDatabase implements IUserService {
 
   private addUserInMemory(user: User): User {
     user.violationCount = user.violationCount || 0;
-    this.users.set(user.token, user);
+    const key = user.apiKey || user.token || '';
+    user.apiKey = key;
+    user.token = key;
+    this.users.set(key, user);
     return user;
   }
 
@@ -304,7 +324,7 @@ class UserDatabase implements IUserService {
 
     for (const document of documents) {
       const user = fromUserDocument(document);
-      this.users.set(user.token, user);
+      this.addUserInMemory(user);
 
       if (needsUserMigration(document)) {
         await this.persistUser(user);
@@ -312,6 +332,19 @@ class UserDatabase implements IUserService {
     }
 
     await this.createIndexes();
+
+    const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
+    if (ownerEmail) {
+      for (const user of this.users.values()) {
+        const isConfiguredOwner = user.email.trim().toLowerCase() === ownerEmail;
+        const nextRole = isConfiguredOwner ? 'owner' : user.role === 'owner' ? 'public' : user.role;
+        const nextPlan = isConfiguredOwner ? 'gold' : user.plan;
+        if (user.role === nextRole && user.plan === nextPlan) continue;
+        user.role = nextRole;
+        user.plan = nextPlan;
+        await this.saveUser(user);
+      }
+    }
 
     for (const seed of this.getDefaultSeeds()) {
       if (this.findById(seed.id) || this.findByEmail(seed.email)) continue;
@@ -327,7 +360,7 @@ class UserDatabase implements IUserService {
   private async dropLegacyIndexes(): Promise<void> {
     if (!this.usersCollection) return;
 
-    for (const indexName of ['token_1', 'email_1', 'googleSubject_1']) {
+    for (const indexName of ['token_1', 'tokenHash_1', 'email_1', 'googleSubject_1']) {
       try {
         await this.usersCollection.dropIndex(indexName);
       } catch (error) {
@@ -342,7 +375,7 @@ class UserDatabase implements IUserService {
     if (!this.usersCollection || !this.requestCollection) return;
 
     await Promise.all([
-      this.usersCollection.createIndex({ tokenHash: 1 }, { unique: true }),
+      this.usersCollection.createIndex({ apiKeyHash: 1 }, { unique: true }),
       this.usersCollection.createIndex({ emailHash: 1 }),
       this.usersCollection.createIndex(
         { googleSubjectHash: 1 },
@@ -365,7 +398,7 @@ class UserDatabase implements IUserService {
     try {
       await this.persistUser(user);
     } catch (error) {
-      this.users.delete(user.token);
+      this.users.delete(user.apiKey || user.token);
       throw error;
     }
 
@@ -373,7 +406,10 @@ class UserDatabase implements IUserService {
   }
 
   public async saveUser(user: User): Promise<void> {
-    this.users.set(user.token, user);
+    const key = user.apiKey || user.token;
+    user.apiKey = key;
+    user.token = key;
+    this.users.set(key, user);
     await this.persistUser(user);
   }
 
@@ -422,8 +458,12 @@ class UserDatabase implements IUserService {
     return new Date().toISOString().split('T')[0];
   }
 
+  public findByApiKey(apiKey: string): User | undefined {
+    return this.users.get(apiKey);
+  }
+
   public findByToken(token: string): User | undefined {
-    return this.users.get(token);
+    return this.findByApiKey(token);
   }
 
   public findById(id: string): User | undefined {
@@ -446,8 +486,12 @@ class UserDatabase implements IUserService {
     );
   }
 
-  public generateToken(): string {
+  public generateApiKey(): string {
     return `orb_${randomBytes(32).toString('base64url')}`;
+  }
+
+  public generateToken(): string {
+    return this.generateApiKey();
   }
 
   public generateId(): string {
@@ -473,7 +517,7 @@ class UserDatabase implements IUserService {
 
     await sessionManager.destroyByUserId(id);
 
-    this.users.delete(user.token);
+    this.users.delete(user.apiKey || user.token);
     this.requestHistory.delete(id);
     this.requestDailyUsage.delete(id);
     this.requestEndpointUsage.delete(id);
@@ -782,14 +826,18 @@ class UserDatabase implements IUserService {
     return user;
   }
 
-  public validateAndIncrementToken(token: string, req: Request, consumeToken: boolean = true): User {
-    const user = this.findByToken(token);
+  public validateAndIncrementApiKey(apiKey: string, req: Request, consumeToken: boolean = true): User {
+    const user = this.findByApiKey(apiKey);
 
     if (!user) {
-      throw new UnauthorizedError('Token de acesso inválido.');
+      throw new UnauthorizedError('API Key inválida.');
     }
 
-    return this.validateUserAccess(user, `api:${token}`, req, consumeToken);
+    return this.validateUserAccess(user, `api:${apiKey}`, req, consumeToken);
+  }
+
+  public validateAndIncrementToken(token: string, req: Request, consumeToken: boolean = true): User {
+    return this.validateAndIncrementApiKey(token, req, consumeToken);
   }
 }
 

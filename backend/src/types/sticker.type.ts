@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { validateSafeUrl } from '@utils/urlSecurity.util';
 
 export const STICKER_EFFECTS = [
   'invert',
@@ -153,10 +154,24 @@ export const StickerSchema = z
     }
 
     const rawSize = data.size ?? data.tamanho;
+    const rawUrl = data.url ?? data.imageUrl ?? data.image_url ?? data.imagem ?? data.imagemUrl ?? data.link ?? data.src;
+    let validatedUrl: string | undefined = rawUrl;
+
+    if (typeof rawUrl === 'string' && rawUrl.trim() && !rawUrl.startsWith('data:')) {
+      try {
+        validatedUrl = validateSafeUrl(rawUrl, { fieldName: 'url' });
+      } catch (err: any) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['url'],
+          message: err.message || 'URL inválida ou não permitida.'
+        });
+      }
+    }
 
     return {
       effects,
-      url: data.url ?? data.imageUrl ?? data.image_url ?? data.imagem ?? data.imagemUrl ?? data.link ?? data.src,
+      url: validatedUrl,
       format: data.format ?? data.formato ?? data.tipo,
       blurRadius: clamp(data.blurRadius ?? data.sigma ?? data.intensidade ?? 8, 0.1, 50),
       pixelSize: clamp(Math.round(data.pixelSize ?? data.blockSize ?? 16), 2, 128),

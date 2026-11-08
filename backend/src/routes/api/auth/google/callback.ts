@@ -60,15 +60,19 @@ async function resolveUser(profile: {
   name?: string;
   picture?: string;
 }): Promise<User> {
+  const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
+  const isConfiguredOwner = Boolean(ownerEmail) && profile.email.trim().toLowerCase() === ownerEmail;
   let user = db.findByGoogleSubject(profile.subject) ?? db.findByEmail(profile.email);
 
   if (!user) {
+    const newKey = db.generateApiKey();
     user = await db.addUser({
       id: db.generateId(),
       email: profile.email,
-      token: db.generateToken(),
-      plan: 'free',
-      role: 'public',
+      apiKey: newKey,
+      token: newKey,
+      plan: isConfiguredOwner ? 'gold' : 'free',
+      role: isConfiguredOwner ? 'owner' : 'public',
       dailyRequests: 0,
       lastResetDate: new Date().toISOString().split('T')[0],
       violationCount: 0,
@@ -81,6 +85,12 @@ async function resolveUser(profile: {
     user.name = profile.name ?? user.name;
     user.picture = profile.picture ?? user.picture;
     user.googleSubjectHash = hashSensitive(profile.subject);
+    if (isConfiguredOwner) {
+      user.role = 'owner';
+      user.plan = 'gold';
+    } else if (ownerEmail && user.role === 'owner') {
+      user.role = 'public';
+    }
     await db.saveUser(user);
   }
 

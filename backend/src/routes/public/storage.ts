@@ -1,4 +1,4 @@
-import { NotFoundError } from '@errors/index';
+import { DangerError, NotFoundError } from '@errors/index';
 import { storageService } from '@services/storage.service';
 
 function parseRange(range: string, size: number): { start: number; end: number } | undefined {
@@ -37,6 +37,40 @@ export async function storageRoute(req: Request, url: URL): Promise<Response> {
 
   if (!filePath) {
     throw new NotFoundError('Arquivo não encontrado.');
+  }
+
+  const remote = await storageService.resolveRemote(filename);
+  if (remote) {
+    const range = req.headers.get('range');
+    const upstream = await fetch(remote.url, {
+      method: req.method === 'HEAD' ? 'HEAD' : 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Accept: '*/*',
+        ...(range ? { Range: range } : {})
+      }
+    }).catch(() => null);
+
+    if (!upstream) throw new DangerError('A origem da mídia encerrou a conexão. Tente novamente.', 502);
+    if (!upstream.ok && upstream.status !== 206 && upstream.status !== 416) {
+      throw new DangerError(`A origem da mídia respondeu com HTTP ${upstream.status}.`, 502);
+    }
+
+    const headers = new Headers({
+      'Content-Type': upstream.headers.get('content-type') || storageService.getContentType(filename),
+      'Content-Disposition': `inline; filename="${filename}"`,
+      'Cache-Control': 'private, max-age=300',
+      'Accept-Ranges': upstream.headers.get('accept-ranges') || 'bytes'
+    });
+    for (const name of ['content-length', 'content-range', 'etag', 'last-modified']) {
+      const value = upstream.headers.get(name);
+      if (value) headers.set(name, value);
+    }
+
+    return new Response(req.method === 'HEAD' ? null : upstream.body, {
+      status: upstream.status,
+      headers
+    });
   }
 
   const file = Bun.file(filePath);

@@ -11,16 +11,13 @@ export async function downloadYtdlVideoRoute(req: Request, url: URL): Promise<Re
 
   const dto = ValidatorUtil.validateDownloadPayload({
     url: mediaUrl,
+    platform: 'youtube',
     type: 'video'
   });
 
-  const result = await downloaderService.resolveMediaUrl(dto);
+  const result = await downloaderService.processDownload(dto, {
+    baseUrl: process.env.PUBLIC_BASE_URL || url.origin
+  });
 
-  return Response.json({
-    success: true,
-    message: 'URL de vídeo resolvida com sucesso.',
-    mediaType: result.mediaType,
-    downloadUrl: result.directUrl,
-    metadata: result.metadata
-  }, { status: 200 });
+  return Response.json(result, { status: 200 });
 }

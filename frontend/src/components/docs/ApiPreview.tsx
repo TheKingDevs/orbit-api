@@ -8,7 +8,6 @@ import type { ApiDoc, DocPreview } from "@lib/docs";
 
 const SHAZAM_SAMPLE =
   "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/57/a5/85/57a585aa-f1bc-7619-881b-f8a04a5541d5/mzaf_6906185026678279401.plus.aac.p.m4a";
-const KWAI_SAMPLE = "https://www.kwai.com/@odego/video/5233895820895416745";
 const SOUNDCLOUD_SAMPLE = "https://soundcloud.com/forss/flickermood";
 
 const compactNumber = new Intl.NumberFormat("pt-BR", {
@@ -40,15 +39,6 @@ interface PinItem {
   pinUrl: string | null;
   image: string | null;
   uploader: string | null;
-}
-
-interface KwaiItem {
-  title: string;
-  thumbnail: string | null;
-  video: string | null;
-  duration: string | null;
-  creator: string | null;
-  profile: string | null;
 }
 
 interface MediaLink {
@@ -105,7 +95,7 @@ function isImageUrl(value: string): boolean {
 
   return (
     /\.(?:avif|gif|jpe?g|png|webp)(?:[?#]|$)/i.test(value) ||
-    /(?:pinimg|ytimg|tiktokcdn|kwai\.net|sndcdn|fbcdn|cdninstagram|googleusercontent|unsplash|pexels|wallhaven|imgur)/i.test(
+    /(?:pinimg|ytimg|tiktokcdn|sndcdn|fbcdn|cdninstagram|googleusercontent|unsplash|pexels|wallhaven|imgur)/i.test(
       value
     )
   );
@@ -165,6 +155,16 @@ function fieldsFor(doc: ApiDoc, preview: DocPreview): PreviewField[] {
           placeholder: "Explique o que é a Orbit API em uma frase."
         }
       ];
+    case "image-generation":
+      return [
+        { name: "prompt", label: "Descrição da imagem", placeholder: "Uma cidade futurista ao pôr do sol, arte digital" },
+        ...(doc.slug.includes("stable-diffusion")
+          ? [{ name: "negative_prompt", label: "Prompt negativo (opcional)", placeholder: "texto, marca d'água, imagem borrada" }]
+          : []),
+        { name: "width", label: "Largura", placeholder: "512" },
+        { name: "height", label: "Altura", placeholder: "512" },
+        { name: "steps", label: "Etapas", placeholder: "20" }
+      ];
     case "youtube":
       return [
         {
@@ -209,9 +209,7 @@ function fieldsFor(doc: ApiDoc, preview: DocPreview): PreviewField[] {
         {
           name: "url",
           label: "URL do vídeo",
-          placeholder: doc.path.includes("/kwai")
-            ? "https://www.kwai.com/@usuario/video/..."
-            : "https://www.facebook.com/watch/?v=..."
+          placeholder: "https://www.facebook.com/watch/?v=..."
         }
       ];
     case "audio":
@@ -230,6 +228,86 @@ function fieldsFor(doc: ApiDoc, preview: DocPreview): PreviewField[] {
           placeholder: "https://www.youtube.com/watch?v=..."
         }
       ];
+    case "media":
+      if (doc.slug.includes("play-audio")) {
+        return [
+          {
+            name: "name",
+            label: "Nome da música",
+            placeholder: "Shape of You"
+          }
+        ];
+      }
+      if (doc.slug.includes("play-video")) {
+        return [
+          {
+            name: "name",
+            label: "Nome do vídeo",
+            placeholder: "Vídeo de gatos fofos"
+          }
+        ];
+      }
+      if (doc.slug.includes("instagram")) {
+        return [
+          {
+            name: "url",
+            label: "URL do Reel ou post",
+            placeholder: "https://www.instagram.com/reel/..."
+          },
+          {
+            name: "type",
+            label: "Tipo de mídia",
+            placeholder: "video ou image",
+            hint: "Digite video ou image"
+          }
+        ];
+      }
+      if (doc.slug.some((slug) => slug.includes("tiktok"))) {
+        return [
+          {
+            name: "url",
+            label: "URL do vídeo do TikTok",
+            placeholder: "https://vm.tiktok.com/..."
+          }
+        ];
+      }
+      return [
+        {
+          name: "url",
+          label: "URL do conteúdo",
+          placeholder: "https://www.youtube.com/watch?v=..."
+        }
+      ];
+    case "effects":
+      return [
+        {
+          name: "url",
+          label: "URL da imagem",
+          placeholder: "https://images.unsplash.com/photo-..."
+        },
+        {
+          name: "effect",
+          label: "Efeito",
+          placeholder: "circle, invert, blur, pixel, mirror...",
+          hint: "Opções: invert, blur, mirror, circle, gray, pixel, upscale"
+        },
+        {
+          name: "format",
+          label: "Formato de saída",
+          placeholder: "png ou webp"
+        }
+      ];
+    case "transcribe":
+      return [
+        {
+          name: "language",
+          label: "Idioma do áudio",
+          placeholder: "auto, pt ou en",
+          hint: "Padrão: auto. Selecione um arquivo abaixo ou use o áudio de exemplo."
+        }
+      ];
+    case "to-gif":
+      return [];
     default:
       return [];
   }
@@ -239,6 +317,10 @@ function defaultsFor(doc: ApiDoc, preview: DocPreview): Record<string, string> {
   switch (preview) {
     case "ai":
       return { query: "Explique o que é a Orbit API em uma frase." };
+    case "image-generation":
+      return doc.slug.includes("stable-diffusion")
+        ? { prompt: "Uma raposa em uma floresta iluminada por vaga-lumes, ilustração digital", negative_prompt: "texto, marca d'água, imagem borrada", width: "512", height: "512", steps: "20" }
+        : { prompt: "Uma cidade futurista ao pôr do sol, arte digital", width: "512", height: "512", steps: "20" };
     case "youtube":
       return { query: "gatos fofos" };
     case "pinterest":
@@ -246,11 +328,40 @@ function defaultsFor(doc: ApiDoc, preview: DocPreview): Record<string, string> {
     case "shazam":
       return { audioUrl: SHAZAM_SAMPLE };
     case "video":
-      return { url: doc.path.includes("/kwai") ? KWAI_SAMPLE : "" };
+      return { url: "https://www.facebook.com/watch/?v=10153231379946729" };
     case "audio":
       return { url: SOUNDCLOUD_SAMPLE };
     case "ytdl":
-      return { url: "" };
+      return { url: "https://www.youtube.com/watch?v=kJQP7kiw5Fk" };
+    case "media":
+      if (doc.slug.includes("play-audio")) {
+        return { name: "Shape of You" };
+      }
+      if (doc.slug.includes("play-video")) {
+        return { name: "Vídeo de gatos fofos" };
+      }
+      if (doc.slug.includes("instagram")) {
+        return {
+          url: "https://www.instagram.com/reel/DfZkZLXP0gw/?vrfl=emx5aWQ5czR0ZmZo",
+          type: "video"
+        };
+      }
+      if (doc.slug.some((slug) => slug.includes("tiktok"))) {
+        return { url: "https://vm.tiktok.com/ZSpk6mMKE/" };
+      }
+      return { url: "https://www.youtube.com/watch?v=kJQP7kiw5Fk" };
+    case "tiktok-images":
+      return { url: "https://vm.tiktok.com/ZSpk6mMKE/" };
+    case "effects":
+      return {
+        url: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400",
+        effect: "circle",
+        format: "png"
+      };
+    case "transcribe":
+      return { language: "auto" };
+    case "to-gif":
+      return {};
     default:
       return {};
   }
@@ -284,6 +395,37 @@ function EmptyResult({ message }: { message: string }) {
   return (
     <div className="rounded-xl border border-dashed border-white/[0.12] bg-white/[0.02] px-5 py-8 text-center text-sm text-zinc-500">
       {message}
+    </div>
+  );
+}
+
+function GeneratedImageResult({ generation }: { generation: JsonObject }) {
+  const image = asText(generation.img) ?? asText(generation.image) ?? asText(generation.url);
+  const [failed, setFailed] = useState(false);
+
+  if (!image || failed) {
+    return (
+      <EmptyResult
+        message={generation.censored === true
+          ? "A imagem foi ocultada pelo filtro de segurança do worker."
+          : "O AI Horde concluiu a geração, mas não retornou uma imagem exibível."}
+      />
+    );
+  }
+
+  const src = image.startsWith("data:") || isHttpUrl(image)
+    ? image
+    : `data:image/webp;base64,${image}`;
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#0c0c0e] p-2">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt="Imagem gerada com Stable Diffusion"
+        onError={() => setFailed(true)}
+        className="mx-auto max-h-[560px] max-w-full rounded-lg object-contain"
+      />
     </div>
   );
 }
@@ -638,95 +780,6 @@ function PinterestResult({ data }: { data: unknown }) {
   );
 }
 
-function KwaiResult({ data }: { data: unknown }) {
-  const items: KwaiItem[] = getArray(data, "resultados")
-    .map((entry) => {
-      const item = asObject(entry);
-
-      return {
-        title: getText(item, "titulo") ?? "Vídeo do Kwai",
-        thumbnail: getText(item, "thumbnail") ?? getText(item, "capa"),
-        video: getText(item, "video") ?? getText(item, "url"),
-        duration: formatDuration(getText(item, "duracao")),
-        creator: getText(item, "criador", "nome") ?? getText(item, "autor", "nome"),
-        profile: getText(item, "criador", "perfil")
-      };
-    })
-    .filter((item) => Boolean(item.thumbnail || item.video));
-
-  if (items.length === 0) {
-    return <EmptyResult message="O Kwai não retornou mídia para esta URL." />;
-  }
-
-  return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {items.slice(0, 4).map((item, index) => (
-        <article
-          key={`${item.video ?? item.thumbnail}-${index}`}
-          className="overflow-hidden rounded-xl border border-white/[0.07] bg-[#151517]"
-        >
-          {item.video ? (
-            <video
-              controls
-              preload="metadata"
-              poster={item.thumbnail ?? undefined}
-              src={item.video}
-              className="aspect-video w-full bg-black"
-            />
-          ) : (
-            <a
-              href={item.profile ?? item.thumbnail ?? "#"}
-              target="_blank"
-              rel="noreferrer"
-              className="group relative block aspect-video bg-white/[0.03]"
-            >
-              {item.thumbnail ? (
-                <RemoteImage src={item.thumbnail} alt={item.title} />
-              ) : (
-                <div className="flex h-full items-center justify-center text-zinc-600">
-                  <Icon name="image" className="h-7 w-7" />
-                </div>
-              )}
-            </a>
-          )}
-
-          <div className="p-3">
-            <p className="line-clamp-2 text-sm font-medium text-zinc-100">{item.title}</p>
-            <p className="mt-1 line-clamp-1 text-xs text-zinc-500">
-              {[item.creator, item.duration]
-                .filter((part): part is string => Boolean(part))
-                .join(" · ")}
-            </p>
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              {item.video && (
-                <a
-                  href={item.video}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-lg border border-violet-400/20 bg-violet-400/[0.08] px-3 py-1.5 text-xs font-medium text-violet-200 transition hover:bg-violet-400/15 hover:text-white"
-                >
-                  Abrir vídeo
-                </a>
-              )}
-              {item.profile && (
-                <a
-                  href={item.profile}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-lg border border-white/[0.08] px-3 py-1.5 text-xs font-medium text-zinc-400 transition hover:border-violet-400/30 hover:text-violet-200"
-                >
-                  Ver perfil
-                </a>
-              )}
-            </div>
-          </div>
-        </article>
-      ))}
-    </div>
-  );
-}
-
 function FacebookResult({ data }: { data: unknown }) {
   const links: MediaLink[] = [];
 
@@ -837,57 +890,195 @@ function SoundCloudResult({ data }: { data: unknown }) {
   );
 }
 
-function YtdlResult({ data }: { data: unknown }) {
-  const downloadUrl = getText(data, "downloadUrl");
+function MediaResult({ data }: { data: unknown }) {
+  const downloadUrl = getText(data, "downloadUrl") || getText(data, "url");
   const mediaType = getText(data, "mediaType");
-  const title = getText(data, "metadata", "title") ?? "Mídia";
-  const author = getText(data, "metadata", "author");
+  const title = getText(data, "metadata", "title") ?? getText(data, "title") ?? "Mídia";
+  const author = getText(data, "metadata", "author") ?? getText(data, "author");
+  const thumbnail = getText(data, "metadata", "thumbnail") || getText(data, "thumbnail");
 
   if (!downloadUrl) {
     return <EmptyResult message="Não foi possível resolver o link de download." />;
   }
 
-  const isAudio = mediaType === "audio";
+  const isAudio = mediaType === "audio" || /\.(mp3|m4a|ogg|opus)($|\?)/i.test(downloadUrl);
+  const isVideo = mediaType === "video" || /\.(mp4|webm|mkv|mov)($|\?)/i.test(downloadUrl);
+  const isImage = !isAudio && !isVideo;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-white/[0.07] bg-[#151517] p-4 sm:flex-row">
-      <div className="relative h-36 w-36 shrink-0 overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.03]">
-        {isAudio ? (
-          <div className="flex h-full items-center justify-center text-zinc-600">
-            <Icon name="mic" className="h-8 w-8" />
-          </div>
-        ) : (
-          <div className="flex h-full items-center justify-center text-zinc-600">
-            <Icon name="youtube" className="h-8 w-8" />
-          </div>
-        )}
-      </div>
+    <div className="overflow-hidden rounded-xl border border-white/[0.07] bg-[#151517] p-4 flex flex-col sm:flex-row gap-4">
+      {isImage ? (
+        <div className="relative aspect-square max-h-[360px] w-full shrink-0 overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.03]">
+          <RemoteImage src={downloadUrl} alt={title} />
+        </div>
+      ) : (
+        <div className="relative h-44 w-full sm:h-36 sm:w-36 shrink-0 overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.03]">
+          {thumbnail ? (
+            <RemoteImage src={thumbnail} alt={title} />
+          ) : isAudio ? (
+            <div className="flex h-full items-center justify-center text-zinc-600">
+              <Icon name="mic" className="h-8 w-8" />
+            </div>
+          ) : (
+            <div className="flex h-full items-center justify-center text-zinc-600">
+              <Icon name="youtube" className="h-8 w-8" />
+            </div>
+          )}
+        </div>
+      )}
 
-      <div className="min-w-0 flex-1 p-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-violet-300">
-          YTDL {mediaType === "video" ? "Vídeo" : "Áudio"}
-        </p>
-        <h3 className="mt-1 text-lg font-semibold text-white">{title}</h3>
-        {author && <p className="text-sm text-zinc-400">{author}</p>}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="rounded-full border border-violet-400/20 bg-violet-400/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-300">
+            {isAudio ? "Áudio" : isVideo ? "Vídeo" : "Imagem"}
+          </span>
+          {author && <span className="truncate text-xs text-zinc-500">• {author}</span>}
+        </div>
+        <h3 className="mt-1 text-base sm:text-lg font-semibold text-white">{title}</h3>
 
         {isAudio ? (
-          <audio controls preload="none" src={downloadUrl} className="mt-4 h-9 w-full">
+          <audio controls preload="metadata" src={downloadUrl} className="mt-4 h-9 w-full">
             Seu navegador não suporta a reprodução de áudio.
           </audio>
-        ) : (
-          <video controls preload="none" src={downloadUrl} className="mt-4 h-36 w-full bg-black" />
-        )}
+        ) : isVideo ? (
+          <video controls preload="metadata" src={downloadUrl} className="mt-4 max-h-[360px] w-full rounded-lg bg-black" />
+        ) : null}
 
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
           <a
             href={downloadUrl}
             target="_blank"
             rel="noreferrer"
+            download
             className="rounded-lg border border-violet-400/20 bg-violet-400/[0.08] px-3 py-1.5 text-xs font-medium text-violet-200 transition hover:bg-violet-400/15 hover:text-white"
           >
-            Baixar {mediaType === "video" ? "Vídeo" : "Áudio"}
+            Baixar {isAudio ? "Áudio" : isVideo ? "Vídeo" : "Imagem"}
           </a>
+          {thumbnail && (
+            <a
+              href={thumbnail}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+            >
+              Baixar Capa
+            </a>
+          )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function EffectsResult({ data }: { data: unknown }) {
+  const blobUrl = getText(data, "blobUrl");
+  const effect = getText(data, "effect") ?? "efeito";
+
+  if (!blobUrl) {
+    return <EmptyResult message="Não foi possível gerar a imagem com os efeitos solicitados." />;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-white/[0.07] bg-[#151517] p-4 space-y-3">
+      <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+        <span className="rounded-full border border-violet-400/20 bg-violet-400/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-300">
+          Efeito: {effect}
+        </span>
+        <a
+          href={blobUrl}
+          download="canvas-effect.png"
+          className="rounded-lg border border-violet-400/20 bg-violet-400/[0.08] px-3 py-1 text-xs font-medium text-violet-200 transition hover:bg-violet-400/15 hover:text-white"
+        >
+          Baixar imagem
+        </a>
+      </div>
+
+      <div className="flex justify-center bg-[#0c0c0e] p-4 rounded-xl">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={blobUrl} alt="Efeito Canvas" className="max-h-[380px] rounded-lg object-contain" />
+      </div>
+    </div>
+  );
+}
+
+function TranscribeResult({ data }: { data: unknown }) {
+  const text = getText(data, "text") ?? "";
+  const duration = asNumber(get(data, "durationSeconds"));
+  const language = getText(data, "language") ?? "auto";
+  const [copied, setCopied] = useState(false);
+
+  function copyText() {
+    if (!text) return;
+    navigator.clipboard?.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  if (!text) {
+    return <EmptyResult message="Nenhum texto reconhecido na transcrição." />;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-white/[0.07] bg-[#151517] p-4 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] pb-3">
+        <div className="flex items-center gap-2">
+          <span className="rounded-full border border-violet-400/20 bg-violet-400/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-300">
+            Whisper AI
+          </span>
+          {language && (
+            <span className="text-xs text-zinc-400">
+              Idioma: <span className="font-semibold text-zinc-200 uppercase">{language}</span>
+            </span>
+          )}
+          {duration !== null && (
+            <span className="text-xs text-zinc-500">• {duration.toFixed(1)}s</span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={copyText}
+          className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-zinc-200 transition hover:bg-white/[0.08]"
+        >
+          {copied ? "Copiado!" : "Copiar texto"}
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-white/[0.06] bg-[#0c0c0e] p-4 text-sm leading-relaxed text-zinc-100 select-all whitespace-pre-wrap font-sans">
+        {text}
+      </div>
+    </div>
+  );
+}
+
+function ToGifResult({ data }: { data: unknown }) {
+  const blobUrl = getText(data, "blobUrl");
+  const size = asNumber(get(data, "size"));
+
+  if (!blobUrl) {
+    return <EmptyResult message="Não foi possível converter a imagem para GIF." />;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-white/[0.07] bg-[#151517] p-4 space-y-3">
+      <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+        <div className="flex items-center gap-2">
+          <span className="rounded-full border border-emerald-400/20 bg-emerald-400/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-300">
+            GIF Animado
+          </span>
+          {size && <span className="text-xs text-zinc-500">{(size / 1024).toFixed(1)} KB</span>}
+        </div>
+        <a
+          href={blobUrl}
+          download="orbit-converted.gif"
+          className="rounded-lg border border-emerald-400/20 bg-emerald-400/[0.08] px-3 py-1 text-xs font-medium text-emerald-200 transition hover:bg-emerald-400/15 hover:text-white"
+        >
+          Baixar GIF
+        </a>
+      </div>
+
+      <div className="flex justify-center bg-[#0c0c0e] p-4 rounded-xl">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={blobUrl} alt="GIF convertido" className="max-h-[380px] rounded-lg object-contain" />
       </div>
     </div>
   );
@@ -913,6 +1104,11 @@ function PreviewResult({
   switch (preview) {
     case "ai":
       return <AiResult data={data} />;
+    case "image-generation": {
+      const generations = getArray(data, "generations");
+      const first = asObject(generations[0]);
+      return first ? <GeneratedImageResult generation={first} /> : <EmptyResult message="O AI Horde concluiu a solicitação sem retornar uma imagem." />;
+    }
     case "youtube":
       return <YouTubeResult data={data} />;
     case "shazam":
@@ -922,11 +1118,18 @@ function PreviewResult({
     case "pinterest":
       return <PinterestResult data={data} />;
     case "video":
-      return doc.path.includes("/kwai") ? <KwaiResult data={data} /> : <FacebookResult data={data} />;
+      return <FacebookResult data={data} />;
     case "audio":
       return <SoundCloudResult data={data} />;
     case "ytdl":
-      return <YtdlResult data={data} />;
+    case "media":
+      return <MediaResult data={data} />;
+    case "effects":
+      return <EffectsResult data={data} />;
+    case "transcribe":
+      return <TranscribeResult data={data} />;
+    case "to-gif":
+      return <ToGifResult data={data} />;
     default:
       return <JsonFallback data={data} />;
   }
@@ -935,14 +1138,145 @@ function PreviewResult({
 export default function ApiPreview({ doc, preview }: { doc: ApiDoc; preview: DocPreview }) {
   const fields = fieldsFor(doc, preview);
   const [values, setValues] = useState<Record<string, string>>(() => defaultsFor(doc, preview));
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [result, setResult] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const hasValues = fields.some((field) => Boolean(values[field.name]?.trim()));
+  const hasValues =
+    preview === "to-gif" ||
+    preview === "transcribe" ||
+    fields.length === 0 ||
+    fields.some((field) => Boolean(values[field.name]?.trim()));
 
   async function runPreview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (preview === "image-generation") {
+      setLoading(true);
+      setError(null);
+      setResult(null);
+      try {
+        const params: Record<string, number> = {};
+        for (const name of ["width", "height", "steps"]) {
+          const value = Number(values[name]);
+          if (Number.isFinite(value) && value > 0) params[name] = value;
+        }
+        const body: Record<string, unknown> = { prompt: values.prompt?.trim(), params };
+        if (values.negative_prompt?.trim()) body.negative_prompt = values.negative_prompt.trim();
+        const submitted = await apiFetch<{ id?: string; message?: string }>(doc.path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        if (!submitted.id) throw new Error(submitted.message || "AI Horde não retornou o id da geração.");
+        for (let attempt = 0; attempt < 54; attempt += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 10000));
+          const status = await apiFetch<unknown>(`/api/ai/image/status?id=${encodeURIComponent(submitted.id)}`);
+          if (get(status, "done") === true) {
+            setResult(status);
+            return;
+          }
+          if (get(status, "faulted") === true) throw new Error("A geração falhou no AI Horde. Tente novamente.");
+        }
+        throw new Error(`A geração ainda está na fila. ID da requisição: ${submitted.id}`);
+      } catch (requestError) {
+        setError(requestError instanceof ApiError ? requestError.message : requestError instanceof Error ? requestError.message : "Não foi possível gerar a imagem.");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (preview === "transcribe") {
+      setLoading(true);
+      setError(null);
+      setResult(null);
+
+      try {
+        const formData = new FormData();
+        if (selectedFile) {
+          formData.append("file", selectedFile);
+        } else {
+          const sampleRes = await fetch(SHAZAM_SAMPLE);
+          const sampleBlob = await sampleRes.blob();
+          formData.append("file", sampleBlob, "sample.m4a");
+        }
+        if (values.language?.trim()) {
+          formData.append("language", values.language.trim());
+        }
+        const data = await apiFetch<unknown>("/api/transcribe", {
+          method: "POST",
+          body: formData
+        });
+        setResult(data);
+      } catch (requestError) {
+        setError(
+          requestError instanceof ApiError
+            ? requestError.message
+            : "Não foi possível executar a transcrição."
+        );
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (preview === "to-gif") {
+      setLoading(true);
+      setError(null);
+      setResult(null);
+
+      try {
+        let fileBlob: Blob | null = selectedFile;
+        if (!fileBlob) {
+          const sampleRes = await fetch("/api/sticker/brat?text=Orbit&preview=docs");
+          fileBlob = await sampleRes.blob();
+        }
+        const formData = new FormData();
+        formData.append("file", fileBlob, "sticker.webp");
+        const data = await apiFetch<{ blobUrl: string }>("/api/utility/to-gif", {
+          method: "POST",
+          body: formData
+        });
+        setResult(data);
+      } catch (requestError) {
+        setError(
+          requestError instanceof ApiError
+            ? requestError.message
+            : "Não foi possível converter a imagem para GIF."
+        );
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (preview === "effects") {
+      setLoading(true);
+      setError(null);
+      setResult(null);
+
+      try {
+        const params = new URLSearchParams();
+        if (values.url?.trim()) params.set("url", values.url.trim());
+        if (values.effect?.trim()) params.set("effect", values.effect.trim());
+        if (values.format?.trim()) params.set("format", values.format.trim());
+        params.set("preview", "docs");
+
+        const data = await apiFetch<{ blobUrl: string }>(`${doc.path}?${params.toString()}`);
+        setResult({ ...data, effect: values.effect || "efeito", originalUrl: values.url });
+      } catch (requestError) {
+        setError(
+          requestError instanceof ApiError
+            ? requestError.message
+            : "Não foi possível aplicar os efeitos na imagem."
+        );
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     const params = new URLSearchParams();
 
@@ -1001,31 +1335,67 @@ export default function ApiPreview({ doc, preview }: { doc: ApiDoc; preview: Doc
       </div>
 
       <form onSubmit={runPreview} className="mt-4 space-y-3">
-        <div className={fields.length > 1 ? "grid gap-3 sm:grid-cols-2" : ""}>
-          {fields.map((field) => (
-            <label key={field.name} className="block">
-              <span className="mb-1.5 block text-xs font-medium text-zinc-500">
-                {field.label}
-              </span>
-              <input
-                type="text"
-                value={values[field.name] ?? ""}
-                onChange={(event) =>
-                  setValues((current) => ({ ...current, [field.name]: event.target.value }))
-                }
-                placeholder={field.placeholder}
-                autoComplete="off"
-                spellCheck={false}
-                className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#0c0c0e] px-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-white/20"
-              />
-              {field.hint && (
-                <span className="mt-1 block text-[11px] text-zinc-600">{field.hint}</span>
-              )}
-            </label>
-          ))}
-        </div>
+        {fields.length > 0 && (
+          <div className={fields.length > 1 ? "grid gap-3 sm:grid-cols-2" : ""}>
+            {fields.map((field) => (
+              <label key={field.name} className="block">
+                <span className="mb-1.5 block text-xs font-medium text-zinc-500">
+                  {field.label}
+                </span>
+                <input
+                  type="text"
+                  value={values[field.name] ?? ""}
+                  onChange={(event) =>
+                    setValues((current) => ({ ...current, [field.name]: event.target.value }))
+                  }
+                  placeholder={field.placeholder}
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#0c0c0e] px-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-white/20"
+                />
+                {field.hint && (
+                  <span className="mt-1 block text-[11px] text-zinc-600">{field.hint}</span>
+                )}
+              </label>
+            ))}
+          </div>
+        )}
 
-        <div className="flex flex-wrap items-center gap-3">
+        {preview === "transcribe" && (
+          <div className="rounded-xl border border-white/[0.08] bg-[#0c0c0e] p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-zinc-400">Arquivo de áudio</span>
+              <span className="text-[11px] text-zinc-500 truncate max-w-[200px]">
+                {selectedFile ? selectedFile.name : "Nenhum selecionado (usará áudio de exemplo)"}
+              </span>
+            </div>
+            <input
+              type="file"
+              accept="audio/*,video/*"
+              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              className="block w-full text-xs text-zinc-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-white/10 file:bg-white/[0.04] file:text-xs file:font-semibold file:text-zinc-200 file:cursor-pointer hover:file:bg-white/[0.08]"
+            />
+          </div>
+        )}
+
+        {preview === "to-gif" && (
+          <div className="rounded-xl border border-white/[0.08] bg-[#0c0c0e] p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-zinc-400">Imagem WebP para converter</span>
+              <span className="text-[11px] text-zinc-500 truncate max-w-[200px]">
+                {selectedFile ? selectedFile.name : "Nenhum arquivo (usará sticker de exemplo)"}
+              </span>
+            </div>
+            <input
+              type="file"
+              accept="image/webp,image/*"
+              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              className="block w-full text-xs text-zinc-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-white/10 file:bg-white/[0.04] file:text-xs file:font-semibold file:text-zinc-200 file:cursor-pointer hover:file:bg-white/[0.08]"
+            />
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-3 pt-1">
           <button
             type="submit"
             disabled={loading || !hasValues}
@@ -1048,9 +1418,12 @@ export default function ApiPreview({ doc, preview }: { doc: ApiDoc; preview: Doc
 
       <div className="mt-4" aria-live="polite">
         {loading ? (
-          <div className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-6 text-sm text-zinc-400">
-            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-violet-400/30 border-t-violet-300" />
-            Buscando resultado...
+          <div className="flex min-w-0 items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-4">
+            <span aria-hidden="true" className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-violet-400/25 border-t-violet-300 motion-reduce:animate-none" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-zinc-300">{preview === "image-generation" ? "Criando sua imagem" : "Processando requisição"}</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-zinc-500">{preview === "image-generation" ? "Aguarde enquanto a imagem é criada. Isso pode levar alguns minutos." : "Aguarde a resposta da API."}</p>
+            </div>
           </div>
         ) : result !== null ? (
           <PreviewResult doc={doc} preview={preview} data={result} />

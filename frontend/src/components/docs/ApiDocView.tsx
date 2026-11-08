@@ -174,7 +174,7 @@ function buildExample(
     }
   } else {
     for (const param of doc.params) {
-      if (param.name === "token" || param.type === "file") continue;
+      if (param.name === "apikey" || param.name === "token" || param.type === "file") continue;
 
       const example = doc.example?.[param.name];
       const value = example ?? (param.required ? sampleValue(param) : null);
@@ -184,8 +184,34 @@ function buildExample(
   }
 
   const queryString = query.toString();
-  const url = `${base}${doc.path}${queryString ? `?${queryString}` : ""}`;
+  const url = `${base}${doc.path}${doc.preview !== "image-generation" && queryString ? `?${queryString}` : ""}`;
   const responseType = isBinaryResponse(doc.path) ? "blob" : "json";
+
+  if (doc.preview === "image-generation") {
+    const prompt = doc.example?.prompt ?? "Uma cidade futurista ao pôr do sol, arte digital";
+    const negativePrompt = doc.example?.negative_prompt;
+    return [
+      "const response = await fetch(",
+      `  "${url}",`,
+      "  {",
+      '    method: "POST",',
+      "    headers: {",
+      '      "Content-Type": "application/json",',
+      `      "x-apikey": \`${token}\``,
+      "    },",
+      "    body: JSON.stringify({",
+      `      prompt: ${JSON.stringify(prompt)},`,
+      ...(negativePrompt ? [`      negative_prompt: ${JSON.stringify(negativePrompt)},`] : []),
+      "      params: { width: 512, height: 512, steps: 20 },",
+      "    }),",
+      "  }",
+      ");",
+      "",
+      "const data = await response.json();",
+      "console.log(data); // { id: \"...\", ... }",
+      "// Consulte GET /api/ai/image/status?id=... para acompanhar a geração."
+    ].join("\n");
+  }
 
   if (method === "POST") {
     return [
@@ -197,7 +223,7 @@ function buildExample(
       "  {",
       '    method: "POST",',
       "    headers: {",
-      `      Authorization: \`Bearer ${token}\``,
+      `      "x-apikey": \`${token}\``,
       "    },",
       "    body",
       "  }",
@@ -213,7 +239,7 @@ function buildExample(
     `  "${url}",`,
     "  {",
     "    headers: {",
-    `      Authorization: \`Bearer ${token}\``,
+    `      "x-apikey": \`${token}\``,
     "    }",
     "  }",
     ");",
@@ -592,8 +618,9 @@ export default function ApiDocView({ doc }: { doc: ApiDoc }) {
                       )}
 
                       {previewLoading && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-[#0c0c0e]/90 text-sm text-zinc-400">
-                          Gerando pré-visualização...
+                        <div role="status" className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#0c0c0e]/90 px-4 text-center">
+                          <span aria-hidden="true" className="h-6 w-6 animate-spin rounded-full border-2 border-violet-400/25 border-t-violet-300 motion-reduce:animate-none" />
+                          <span className="text-xs text-zinc-400">Carregando prévia...</span>
                         </div>
                       )}
 
@@ -639,8 +666,8 @@ export default function ApiDocView({ doc }: { doc: ApiDoc }) {
                     type="button"
                     onClick={() => setRevealedToken((value) => !value)}
                     disabled={!apiKey}
-                    aria-label={revealedToken ? "Ocultar token" : "Mostrar token"}
-                    title={revealedToken ? "Ocultar token" : "Mostrar token"}
+                    aria-label={revealedToken ? "Ocultar API Key" : "Mostrar API Key"}
+                    title={revealedToken ? "Ocultar API Key" : "Mostrar API Key"}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-violet-400/10 hover:text-violet-200 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Icon name={revealedToken ? "eyeOff" : "eye"} className="h-4 w-4" />

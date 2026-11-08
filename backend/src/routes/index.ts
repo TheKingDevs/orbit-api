@@ -1,7 +1,5 @@
 import { publicWelcomeRoute } from './public/welcome';
 import { storageRoute } from './public/storage';
-import { ttpPreviewRoute } from './public/ttpPreview';
-import { htmlToImageAssetRoute } from './public/htmlToImageAsset';
 
 import { downloadPlayAudioRoute } from './api/download/play_audio';
 import { downloadPlayVideoRoute } from './api/download/play_video';
@@ -12,7 +10,6 @@ import { downloadInstagramRoute } from './api/download/instagram';
 import { downloadTikTokAudioRoute } from './api/download/tiktok_audio';
 import { downloadTikTokVideoRoute } from './api/download/tiktok_video';
 import { downloadTikTokImagesRoute } from './api/download/tiktok_images';
-import { downloadKwaiRoute } from './api/download/kwai';
 import { downloadFacebookRoute } from './api/download/facebook';
 import { downloadSoundCloudRoute } from './api/download/soundcloud';
 
@@ -20,6 +17,7 @@ import { shazamRoute } from './api/ai/shazam';
 import { gptRoute } from './api/ai/gpt';
 import { groqRoute } from './api/ai/groq';
 import { geminiRoute } from './api/ai/gemini';
+import { imageGenerationRoute, imageGenerationStatusRoute } from './api/ai/image';
 
 import { ytSearchRoute } from './api/search/youtube';
 import { ytSearchV2Route } from './api/search/youtubeV2';
@@ -67,10 +65,6 @@ export async function router(req: Request): Promise<Response> {
     return storageRoute(req, url);
   }
 
-  // --- TTP PREVIEW ---
-  if (req.method === 'GET' && path === '/preview/ttp') return ttpPreviewRoute();
-  if (req.method === 'GET' && path === '/assets/html-to-image.js') return htmlToImageAssetRoute();
-
   // --- API USER & BALANCE ---
   if (req.method === 'GET' && path === '/api/user/key') return userKeyRoute(req);
   if (req.method === 'GET' && path === '/api/user/usage') return userUsageRoute(req, url);
@@ -92,7 +86,6 @@ export async function router(req: Request): Promise<Response> {
   if (path === '/api/download/tiktok_audio') return downloadTikTokAudioRoute(req, url);
   if (path === '/api/download/tiktok_video') return downloadTikTokVideoRoute(req, url);
   if (path === '/api/download/tiktok_images' || path === '/api/download/tiktok_slides') return downloadTikTokImagesRoute(req, url);
-  if (path === '/api/download/kwai') return downloadKwaiRoute(req, url);
   if (path === '/api/download/facebook') return downloadFacebookRoute(req, url);
   if (path === '/api/download/soundcloud') return downloadSoundCloudRoute(req, url);
 
@@ -101,6 +94,8 @@ export async function router(req: Request): Promise<Response> {
   if (path === '/api/ai/gpt' || path === '/api/gpt') return gptRoute(req, url);
   if (path === '/api/ai/groq' || path === '/api/groq') return groqRoute(req, url);
   if (path === '/api/ai/gemini' || path === '/api/gemini') return geminiRoute(req, url);
+  if (path === '/api/ai/image') return imageGenerationRoute(req);
+  if (path === '/api/ai/image/status') return imageGenerationStatusRoute(req, url);
 
   // --- API SEARCH ---
   if (path === '/api/search/youtube' || path === '/api/ytsearch') return ytSearchRoute(req, url);

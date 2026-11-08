@@ -18,7 +18,7 @@ export class CanvasService implements ICanvasService {
 
     if (dto.bgUrl) {
       try {
-        const bgImg = await loadImage(dto.bgUrl);
+        const bgImg = await this.loadRemoteImage(dto.bgUrl);
         ctx.drawImage(bgImg, 0, 0, width, height);
         ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
         ctx.fillRect(0, 0, width, height);
@@ -54,7 +54,7 @@ export class CanvasService implements ICanvasService {
 
     if (dto.bgUrl) {
       try {
-        const bgImg = await loadImage(dto.bgUrl);
+        const bgImg = await this.loadRemoteImage(dto.bgUrl);
         ctx.drawImage(bgImg, 0, 0, width, height);
         ctx.fillStyle = 'rgba(24, 24, 27, 0.75)';
         ctx.fillRect(0, 0, width, height);
@@ -110,7 +110,7 @@ export class CanvasService implements ICanvasService {
     const avatarUrl = dto.avatarUrl || 'https://api.dicebear.com/7.x/bottts/png?seed=' + encodeURIComponent(dto.username);
 
     try {
-      const avatarImage = await loadImage(avatarUrl);
+      const avatarImage = await this.loadRemoteImage(avatarUrl);
       ctx.save();
       ctx.beginPath();
       ctx.arc(140, 150, 70, 0, Math.PI * 2, true);
@@ -127,6 +127,21 @@ export class CanvasService implements ICanvasService {
     } catch (e) {
       Logger.warning('Falha ao carregar avatar.', 'CanvasService');
     }
+  }
+
+  private static async loadRemoteImage(url: string) {
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; OrbitAPI/2.0)' },
+      signal: AbortSignal.timeout(8_000)
+    });
+
+    if (!response.ok) throw new Error(`Falha ao carregar imagem (HTTP ${response.status}).`);
+    const contentLength = Number(response.headers.get('content-length') || 0);
+    if (contentLength > 20 * 1024 * 1024) throw new Error('Imagem excede o limite de 20 MB.');
+
+    const bytes = await response.arrayBuffer();
+    if (bytes.byteLength > 20 * 1024 * 1024) throw new Error('Imagem excede o limite de 20 MB.');
+    return loadImage(Buffer.from(bytes));
   }
 
   private static drawTextBlock(

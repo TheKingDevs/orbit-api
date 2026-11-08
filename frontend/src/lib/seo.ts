@@ -39,7 +39,6 @@ export const SITE_KEYWORDS = [
   "download de Instagram",
   "download de TikTok",
   "download de Pinterest",
-  "download de Kwai",
   "download de Facebook",
   "download de SoundCloud",
   "stickers para WhatsApp",

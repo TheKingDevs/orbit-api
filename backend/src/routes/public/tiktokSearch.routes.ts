@@ -13,11 +13,11 @@ router.get("/api/search/tiktok", async (req, res, next) => {
       throw new InvalidParameterError(validationResult.error.errors.map(e => e.message).join(", "));
     }
 
-    const { text, token } = validationResult.data;
+    const { text, apikey } = validationResult.data;
 
-    const isValidUser = await UserService.validateTokenAndConsumeLimit(token);
+    const isValidUser = await UserService.validateTokenAndConsumeLimit(apikey);
     if (!isValidUser) {
-      throw new UnauthorizedError("Token inválido, expirado ou limite diário excedido.");
+      throw new UnauthorizedError("API Key inválida, expirada ou limite diário excedido.");
     }
 
     const videos = await TikTokSearchService.searchVideos(text);

@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { Icon } from "@components/dashboard/icons";
-import UsageOverview from "@components/news/UsageOverview";
-import { APP_VERSION } from "@lib/appVersion";
 import { NEWS } from "@lib/news";
+import { APP_VERSION } from "@lib/appVersion";
+import { Icon } from "@components/dashboard/icons";
 
 export default function NewsTimeline() {
   return (
@@ -23,8 +22,6 @@ export default function NewsTimeline() {
           <span className="font-semibold text-zinc-300">{APP_VERSION}</span>
         </span>
       </header>
-
-      <UsageOverview />
 
       <ol className="relative mt-10 space-y-10">
         <span

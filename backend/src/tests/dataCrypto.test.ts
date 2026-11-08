@@ -36,8 +36,10 @@ describe('dataCrypto', () => {
 
   test('rejects tampered encrypted values', () => {
     const encrypted = encryptSensitive('segredo');
-    const lastCharacter = encrypted.at(-1) === 'A' ? 'B' : 'A';
-    const tampered = `${encrypted.slice(0, -1)}${lastCharacter}`;
+    const parts = encrypted.split('.');
+    const tag = parts[2];
+    parts[2] = (tag[0] === 'a' ? 'b' : 'a') + tag.slice(1);
+    const tampered = parts.join('.');
 
     expect(() => decryptSensitive(tampered)).toThrow();
   });

@@ -1,5 +1,8 @@
 import { authMiddleware } from '@middlewares/authMiddleware';
 import { DangerError } from '@errors/index';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { mkdirSync, rmSync } from 'fs';
 
 export async function toGifRoute(req: Request, url: URL): Promise<Response> {
   authMiddleware(req);
@@ -17,15 +20,21 @@ export async function toGifRoute(req: Request, url: URL): Promise<Response> {
     }
   }
   if (!input) throw new DangerError('Envie um arquivo de imagem.', 400);
-  const dir = `/tmp/kilo/to-gif-${Date.now()}`;
-  await Bun.write(`${dir}/input.webp`, input).catch(() => {});
-  // ensure dir
-  const { mkdirSync } = await import('fs');
+
+  const baseTmp = process.env.TMPDIR || tmpdir() || '/tmp';
+  const dir = join(baseTmp, `to-gif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
   mkdirSync(dir, { recursive: true });
-  await Bun.write(`${dir}/input.webp`, input);
-  const proc = Bun.spawn([ffmpeg, '-y', '-i', `${dir}/input.webp`, `${dir}/out.gif`], { stdout: 'ignore', stderr: 'pipe' });
-  await proc.exited;
-  const out = Bun.file(`${dir}/out.gif`);
-  const buf = await out.arrayBuffer();
-  return new Response(buf, { headers: { 'Content-Type': 'image/gif', 'Content-Length': String(buf.byteLength) } });
+
+  try {
+    await Bun.write(`${dir}/input.webp`, input);
+    const proc = Bun.spawn([ffmpeg, '-y', '-i', `${dir}/input.webp`, `${dir}/out.gif`], { stdout: 'ignore', stderr: 'pipe' });
+    await proc.exited;
+    const out = Bun.file(`${dir}/out.gif`);
+    const buf = await out.arrayBuffer();
+    return new Response(buf, { headers: { 'Content-Type': 'image/gif', 'Content-Length': String(buf.byteLength) } });
+  } finally {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {}
+  }
 }

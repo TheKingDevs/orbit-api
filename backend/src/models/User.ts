@@ -4,7 +4,8 @@ export type UserRole = 'owner' | 'admin' | 'public';
 export interface User {
   id: string;
   email: string;
-  token: string;
+  apiKey: string;
+  token?: string;
   plan: PlanType;
   role: UserRole;
   dailyRequests: number;

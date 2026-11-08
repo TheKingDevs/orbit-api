@@ -3,6 +3,7 @@ import { join } from 'path';
 import { DangerError, InvalidParameterError } from '@errors/index';
 import { CanvasEffect, ImageFormat, MirrorDirection } from '@types/canvasEffects.type';
 import { getTempDir } from '@utils/temp.util';
+import { validateSafeUrl } from '@utils/urlSecurity.util';
 
 const MAX_INPUT_BYTES = 20 * 1024 * 1024;
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -222,17 +223,8 @@ class FfmpegServiceImpl {
       return this.decodeDataUrl(source);
     }
 
-    let url: URL;
-
-    try {
-      url = new URL(source);
-    } catch {
-      throw new InvalidParameterError('URL da imagem inválida.');
-    }
-
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-      throw new InvalidParameterError('A URL da imagem deve usar http ou https.');
-    }
+    const validated = validateSafeUrl(source, { fieldName: 'url' });
+    const url = new URL(validated);
 
     let response: Response;
 
