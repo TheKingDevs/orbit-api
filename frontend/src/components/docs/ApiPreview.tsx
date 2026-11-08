@@ -22,6 +22,7 @@ interface PreviewField {
   label: string;
   placeholder: string;
   hint?: string;
+  multiline?: boolean;
 }
 
 interface YouTubeItem {
@@ -147,6 +148,23 @@ function formatDuration(value: string | null): string | null {
 
 function fieldsFor(doc: ApiDoc, preview: DocPreview): PreviewField[] {
   switch (preview) {
+    case "summarize":
+      return [
+        { name: "text", label: "Texto para resumir", placeholder: "Cole aqui o texto que deseja resumir.", multiline: true },
+        { name: "language", label: "Idioma", placeholder: "auto, pt ou en", hint: "Padrão: auto (mantém o idioma do texto)." },
+        { name: "style", label: "Formato", placeholder: "paragraph ou bullets" },
+        { name: "length", label: "Tamanho", placeholder: "short, medium ou detailed" }
+      ];
+    case "audio-summarize":
+      return [
+        { name: "language", label: "Idioma do áudio", placeholder: "auto, pt ou en", hint: "Padrão: auto. Selecione um arquivo abaixo ou use o áudio de exemplo." },
+        { name: "style", label: "Formato do resumo", placeholder: "paragraph ou bullets" },
+        { name: "length", label: "Tamanho do resumo", placeholder: "short, medium ou detailed" }
+      ];
+    case "ocr":
+      return [
+        { name: "language", label: "Idioma do texto", placeholder: "auto, pt ou en", hint: "Padrão: auto (português e inglês). Escolha uma imagem abaixo." }
+      ];
     case "ai":
       return [
         {
@@ -220,6 +238,24 @@ function fieldsFor(doc: ApiDoc, preview: DocPreview): PreviewField[] {
           placeholder: "https://soundcloud.com/usuario/faixa"
         }
       ];
+    case "download": {
+      const platform = doc.slug[1];
+      const examples: Record<string, string> = {
+        spotify: "https://open.spotify.com/track/...",
+        threads: "https://www.threads.com/@usuario/post/...",
+        "google-drive": "https://drive.google.com/file/d/.../view",
+        capcut: "https://www.capcut.com/template-detail/...",
+        twitter: "https://x.com/usuario/status/..."
+      };
+      return [
+        {
+          name: "url",
+          label: "URL pública",
+          placeholder: examples[platform] ?? "https://...",
+          hint: "Use um link público da plataforma selecionada."
+        }
+      ];
+    }
     case "ytdl":
       return [
         {
@@ -317,6 +353,17 @@ function defaultsFor(doc: ApiDoc, preview: DocPreview): Record<string, string> {
   switch (preview) {
     case "ai":
       return { query: "Explique o que é a Orbit API em uma frase." };
+    case "summarize":
+      return {
+        text: "A Orbit API reúne downloads, inteligência artificial, canvas, stickers e utilitários em uma única integração para bots e projetos.",
+        language: "pt",
+        style: "bullets",
+        length: "short"
+      };
+    case "audio-summarize":
+      return { language: "auto", style: "paragraph", length: "medium" };
+    case "ocr":
+      return { language: "auto" };
     case "image-generation":
       return doc.slug.includes("stable-diffusion")
         ? { prompt: "Uma raposa em uma floresta iluminada por vaga-lumes, ilustração digital", negative_prompt: "texto, marca d'água, imagem borrada", width: "512", height: "512", steps: "20" }
@@ -331,6 +378,8 @@ function defaultsFor(doc: ApiDoc, preview: DocPreview): Record<string, string> {
       return { url: "https://www.facebook.com/watch/?v=10153231379946729" };
     case "audio":
       return { url: SOUNDCLOUD_SAMPLE };
+    case "download":
+      return {};
     case "ytdl":
       return { url: "https://www.youtube.com/watch?v=kJQP7kiw5Fk" };
     case "media":
@@ -463,11 +512,12 @@ function ImageGrid({
 }
 
 function AiResult({ data }: { data: unknown }) {
+  const summary = getText(data, "summary");
   const texts = getArray(data, "data")
     .map((item) => getText(item, "resposta") ?? getText(item, "response") ?? getText(item, "text"))
     .filter((text): text is string => Boolean(text));
 
-  const direct = getText(data, "resposta") ?? getText(data, "resultado", "resposta");
+  const direct = summary ?? getText(data, "resposta") ?? getText(data, "resultado", "resposta");
 
   if (texts.length === 0 && direct) texts.push(direct);
   if (texts.length === 0) {
@@ -488,6 +538,43 @@ function AiResult({ data }: { data: unknown }) {
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-200">{text}</p>
         </div>
       ))}
+    </div>
+  );
+}
+
+function OcrResult({ data }: { data: unknown }) {
+  const text = getText(data, "text") ?? "";
+  const language = getText(data, "language") ?? "auto";
+
+  if (!text) return <EmptyResult message="Nenhum texto foi encontrado na imagem." />;
+
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-[#151517] p-4 space-y-3">
+      <div className="flex items-center gap-2 border-b border-white/[0.06] pb-3">
+        <span className="rounded-full border border-violet-400/20 bg-violet-400/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-300">Tesseract OCR</span>
+        <span className="text-xs text-zinc-400">Idioma: <span className="font-semibold text-zinc-200 uppercase">{language}</span></span>
+      </div>
+      <p className="rounded-xl border border-white/[0.06] bg-[#0c0c0e] p-4 text-sm leading-relaxed text-zinc-100 whitespace-pre-wrap select-all">{text}</p>
+    </div>
+  );
+}
+
+function AudioSummarizeResult({ data }: { data: unknown }) {
+  const summary = getText(data, "summary") ?? "";
+  const transcript = getText(data, "text") ?? "";
+  const language = getText(data, "language") ?? "auto";
+
+  if (!summary) return <EmptyResult message="O áudio foi processado, mas não retornou um resumo." />;
+
+  return (
+    <div className="space-y-3">
+      <AiResult data={{ summary }} />
+      {transcript && (
+        <details className="rounded-xl border border-white/[0.07] bg-[#151517] p-4">
+          <summary className="cursor-pointer text-xs font-semibold text-zinc-300">Ver transcrição · {language.toUpperCase()}</summary>
+          <p className="mt-3 whitespace-pre-wrap border-t border-white/[0.06] pt-3 text-sm leading-relaxed text-zinc-400">{transcript}</p>
+        </details>
+      )}
     </div>
   );
 }
@@ -1103,7 +1190,12 @@ function PreviewResult({
 }) {
   switch (preview) {
     case "ai":
+    case "summarize":
       return <AiResult data={data} />;
+    case "audio-summarize":
+      return <AudioSummarizeResult data={data} />;
+    case "ocr":
+      return <OcrResult data={data} />;
     case "image-generation": {
       const generations = getArray(data, "generations");
       const first = asObject(generations[0]);
@@ -1121,6 +1213,8 @@ function PreviewResult({
       return <FacebookResult data={data} />;
     case "audio":
       return <SoundCloudResult data={data} />;
+    case "download":
+      return <JsonFallback data={data} />;
     case "ytdl":
     case "media":
       return <MediaResult data={data} />;
@@ -1146,6 +1240,8 @@ export default function ApiPreview({ doc, preview }: { doc: ApiDoc; preview: Doc
   const hasValues =
     preview === "to-gif" ||
     preview === "transcribe" ||
+    preview === "audio-summarize" ||
+    (preview === "ocr" && Boolean(selectedFile)) ||
     fields.length === 0 ||
     fields.some((field) => Boolean(values[field.name]?.trim()));
 
@@ -1182,6 +1278,83 @@ export default function ApiPreview({ doc, preview }: { doc: ApiDoc; preview: Doc
         throw new Error(`A geração ainda está na fila. ID da requisição: ${submitted.id}`);
       } catch (requestError) {
         setError(requestError instanceof ApiError ? requestError.message : requestError instanceof Error ? requestError.message : "Não foi possível gerar a imagem.");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (preview === "summarize") {
+      setLoading(true);
+      setError(null);
+      setResult(null);
+
+      try {
+        const body: Record<string, string> = { text: values.text?.trim() ?? "" };
+        for (const name of ["language", "style", "length"]) {
+          const value = values[name]?.trim();
+          if (value) body[name] = value;
+        }
+        const data = await apiFetch<unknown>(doc.path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        setResult(data);
+      } catch (requestError) {
+        setError(requestError instanceof ApiError ? requestError.message : "Não foi possível gerar o resumo.");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (preview === "ocr") {
+      if (!selectedFile) {
+        setError("Selecione uma imagem para executar o OCR.");
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      setResult(null);
+
+      try {
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+        if (values.language?.trim()) formData.append("language", values.language.trim());
+        const data = await apiFetch<unknown>(doc.path, { method: "POST", body: formData });
+        setResult(data);
+      } catch (requestError) {
+        setError(requestError instanceof ApiError ? requestError.message : "Não foi possível extrair o texto da imagem.");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (preview === "audio-summarize") {
+      setLoading(true);
+      setError(null);
+      setResult(null);
+
+      try {
+        const formData = new FormData();
+        if (selectedFile) {
+          formData.append("file", selectedFile);
+        } else {
+          const sampleRes = await fetch(SHAZAM_SAMPLE);
+          const sampleBlob = await sampleRes.blob();
+          formData.append("file", sampleBlob, "sample.m4a");
+        }
+        for (const name of ["language", "style", "length"]) {
+          const value = values[name]?.trim();
+          if (value) formData.append(name, value);
+        }
+        const data = await apiFetch<unknown>(doc.path, { method: "POST", body: formData });
+        setResult(data);
+      } catch (requestError) {
+        setError(requestError instanceof ApiError ? requestError.message : "Não foi possível resumir o áudio.");
       } finally {
         setLoading(false);
       }
@@ -1342,17 +1515,28 @@ export default function ApiPreview({ doc, preview }: { doc: ApiDoc; preview: Doc
                 <span className="mb-1.5 block text-xs font-medium text-zinc-500">
                   {field.label}
                 </span>
-                <input
-                  type="text"
-                  value={values[field.name] ?? ""}
-                  onChange={(event) =>
-                    setValues((current) => ({ ...current, [field.name]: event.target.value }))
-                  }
-                  placeholder={field.placeholder}
-                  autoComplete="off"
-                  spellCheck={false}
-                  className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#0c0c0e] px-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-white/20"
-                />
+                {field.multiline ? (
+                  <textarea
+                    value={values[field.name] ?? ""}
+                    onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.value }))}
+                    placeholder={field.placeholder}
+                    rows={6}
+                    spellCheck={false}
+                    className="w-full resize-y rounded-xl border border-white/[0.08] bg-[#0c0c0e] px-3 py-3 text-sm leading-relaxed text-white outline-none transition placeholder:text-zinc-600 focus:border-white/20"
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={values[field.name] ?? ""}
+                    onChange={(event) =>
+                      setValues((current) => ({ ...current, [field.name]: event.target.value }))
+                    }
+                    placeholder={field.placeholder}
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#0c0c0e] px-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-white/20"
+                  />
+                )}
                 {field.hint && (
                   <span className="mt-1 block text-[11px] text-zinc-600">{field.hint}</span>
                 )}
@@ -1361,7 +1545,7 @@ export default function ApiPreview({ doc, preview }: { doc: ApiDoc; preview: Doc
           </div>
         )}
 
-        {preview === "transcribe" && (
+        {(preview === "transcribe" || preview === "audio-summarize") && (
           <div className="rounded-xl border border-white/[0.08] bg-[#0c0c0e] p-3 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-zinc-400">Arquivo de áudio</span>
@@ -1373,6 +1557,23 @@ export default function ApiPreview({ doc, preview }: { doc: ApiDoc; preview: Doc
               type="file"
               accept="audio/*,video/*"
               onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              className="block w-full text-xs text-zinc-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-white/10 file:bg-white/[0.04] file:text-xs file:font-semibold file:text-zinc-200 file:cursor-pointer hover:file:bg-white/[0.08]"
+            />
+          </div>
+        )}
+
+        {preview === "ocr" && (
+          <div className="rounded-xl border border-white/[0.08] bg-[#0c0c0e] p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-zinc-400">Imagem para OCR</span>
+              <span className="text-[11px] text-zinc-500 truncate max-w-[200px]">
+                {selectedFile ? selectedFile.name : "Selecione uma imagem (máx. 15 MB)"}
+              </span>
+            </div>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/tiff"
+              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
               className="block w-full text-xs text-zinc-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-white/10 file:bg-white/[0.04] file:text-xs file:font-semibold file:text-zinc-200 file:cursor-pointer hover:file:bg-white/[0.08]"
             />
           </div>

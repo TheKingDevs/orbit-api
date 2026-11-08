@@ -1,17 +1,17 @@
 import { DangerError, InvalidParameterError } from '@errors/index';
 import { authMiddleware } from '@middlewares/authMiddleware';
 import { TranscriptionService } from '@services/transcription.service';
+import type { TranscriptionInput } from '@interface/ITranscription';
 import { ValidatorUtil } from '@utils/validator.util';
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
-export async function transcribeRoute(req: Request, url: URL): Promise<Response> {
-  if (req.method !== 'POST') {
-    throw new DangerError('Método não permitido. Use POST.', 405);
-  }
+export interface AudioUploadPayload {
+  languageInput: Record<string, unknown>;
+  input: TranscriptionInput;
+}
 
-  authMiddleware(req);
-
+export async function readAudioUpload(req: Request, url: URL): Promise<AudioUploadPayload> {
   const contentType = (req.headers.get('content-type') || '').toLowerCase();
   const contentLength = Number(req.headers.get('content-length') || 0);
 
@@ -49,7 +49,7 @@ export async function transcribeRoute(req: Request, url: URL): Promise<Response>
       throw new DangerError('Arquivo muito grande. O limite é de 50 MB.', 413);
     }
 
-    for (const key of ['language', 'idioma', 'lang']) {
+    for (const key of ['language', 'idioma', 'lang', 'style', 'length']) {
       const value = form.get(key);
 
       if (typeof value === 'string') {
@@ -82,8 +82,19 @@ export async function transcribeRoute(req: Request, url: URL): Promise<Response>
     mimeType = contentType.split(';')[0].trim();
   }
 
+  return { languageInput, input: { data, filename, mimeType } };
+}
+
+export async function transcribeRoute(req: Request, url: URL): Promise<Response> {
+  if (req.method !== 'POST') {
+    throw new DangerError('Método não permitido. Use POST.', 405);
+  }
+
+  authMiddleware(req);
+
+  const { languageInput, input } = await readAudioUpload(req, url);
   const dto = ValidatorUtil.validateTranscribePayload(languageInput);
-  const result = await TranscriptionService.transcribe({ data, filename, mimeType }, dto.language);
+  const result = await TranscriptionService.transcribe(input, dto.language);
 
   return Response.json(
     {

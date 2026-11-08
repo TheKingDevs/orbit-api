@@ -22,8 +22,8 @@ O frontend encaminha `/api`, `/storage`, `/preview/ttp` e os assets necessários
 
 ## Funcionalidades
 
-- Downloads de Instagram, TikTok (vídeo, áudio e imagens/slides), Pinterest (URL ou pesquisa), YouTube, Facebook e SoundCloud.
-- Inteligência artificial com GPT, Groq, Gemini e identificação musical com Shazam.
+- Downloads de Instagram, TikTok (vídeo, áudio e imagens/slides), Pinterest (URL ou pesquisa), YouTube, Facebook, SoundCloud, Spotify, Threads, Google Drive, CapCut e Twitter/X.
+- Inteligência artificial com GPT, Groq, Gemini, OCR local de imagens, resumo de texto e resumo de áudio com transcrição Whisper.
 - Pesquisas de YouTube (`v1` e `v2`) e wallpapers.
 - Geração de cards e imagens com Canvas (`welcome`, `goodbye`, `ttp`, `attp` e efeitos).
 - Criação de stickers (`ttp`, `attp`, `brat`, `abrat`) e conversão para GIF.
@@ -48,7 +48,7 @@ flowchart TB
     subgraph RENDER["Render"]
         BE["Backend Bun<br/>backend/"]
         AUTH["Google OAuth<br/>sessões e cookies"]
-        DL["Downloads e IA<br/>devworldbr-sdk"]
+        DL["Downloads e IA<br/>devworldbr-sdk + btch-downloader"]
         ART["Canvas e stickers<br/>@napi-rs/canvas + ffmpeg"]
         TR["Transcrição<br/>sherpa-onnx Whisper"]
         ST[("Storage<br/>backend/storage")]
@@ -77,7 +77,7 @@ Diagramas adicionais:
 | Frontend | Next.js 16, React 19, Tailwind CSS 4, TypeScript |
 | Backend | Bun, TypeScript, `@napi-rs/canvas`, `ffmpeg`, `yt-dlp`, Deno, `sherpa-onnx`, `jose`, `zod` |
 | Infraestrutura | GitHub, Render, Vercel |
-| Integrações | Google OAuth, Hugging Face |
+| Integrações | Google OAuth, Hugging Face, `btch-downloader` |
 
 ## Estrutura do repositório
 

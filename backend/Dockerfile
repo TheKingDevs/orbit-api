@@ -19,7 +19,7 @@ RUN bun run build
 FROM oven/bun:latest AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 ffmpeg curl ca-certificates libstdc++6 unzip \
+    python3 ffmpeg tesseract-ocr tesseract-ocr-por tesseract-ocr-eng curl ca-certificates libstdc++6 unzip \
     fonts-dejavu-core fonts-noto-color-emoji && \
     curl -L --fail --retry 3 https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
     chmod a+rx /usr/local/bin/yt-dlp && \

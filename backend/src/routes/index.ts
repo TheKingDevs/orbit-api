@@ -12,12 +12,15 @@ import { downloadTikTokVideoRoute } from './api/download/tiktok_video';
 import { downloadTikTokImagesRoute } from './api/download/tiktok_images';
 import { downloadFacebookRoute } from './api/download/facebook';
 import { downloadSoundCloudRoute } from './api/download/soundcloud';
+import { createBtchDownloadRoute } from './api/download/btch';
 
 import { shazamRoute } from './api/ai/shazam';
 import { gptRoute } from './api/ai/gpt';
 import { groqRoute } from './api/ai/groq';
 import { geminiRoute } from './api/ai/gemini';
 import { imageGenerationRoute, imageGenerationStatusRoute } from './api/ai/image';
+import { ocrRoute } from './api/ai/ocr';
+import { summarizeRoute } from './api/ai/summarize';
 
 import { ytSearchRoute } from './api/search/youtube';
 import { ytSearchV2Route } from './api/search/youtubeV2';
@@ -34,6 +37,7 @@ import { toGifRoute } from './api/utility/to-gif';
 import { stickerBratRoute } from './api/sticker/brat';
 
 import { transcribeRoute } from './api/transcribe';
+import { audioSummarizeRoute } from './api/audio/summarize';
 
 import { userBalanceRoute } from './api/user/balance';
 import { userKeyRoute } from './api/user/key';
@@ -51,6 +55,12 @@ import { deleteUserRoute } from './owner/deleteUser';
 import { updatePlanRoute } from './owner/updatePlan';
 
 import { NotFoundError } from '@errors/index';
+
+const downloadSpotifyRoute = createBtchDownloadRoute('spotify');
+const downloadThreadsRoute = createBtchDownloadRoute('threads');
+const downloadGoogleDriveRoute = createBtchDownloadRoute('google-drive');
+const downloadCapCutRoute = createBtchDownloadRoute('capcut');
+const downloadTwitterRoute = createBtchDownloadRoute('twitter');
 
 export async function router(req: Request): Promise<Response> {
   const url = new URL(req.url);
@@ -88,6 +98,11 @@ export async function router(req: Request): Promise<Response> {
   if (path === '/api/download/tiktok_images' || path === '/api/download/tiktok_slides') return downloadTikTokImagesRoute(req, url);
   if (path === '/api/download/facebook') return downloadFacebookRoute(req, url);
   if (path === '/api/download/soundcloud') return downloadSoundCloudRoute(req, url);
+  if (path === '/api/download/spotify') return downloadSpotifyRoute(req, url);
+  if (path === '/api/download/threads') return downloadThreadsRoute(req, url);
+  if (path === '/api/download/google-drive' || path === '/api/download/gdrive') return downloadGoogleDriveRoute(req, url);
+  if (path === '/api/download/capcut') return downloadCapCutRoute(req, url);
+  if (path === '/api/download/twitter' || path === '/api/download/x') return downloadTwitterRoute(req, url);
 
   // --- API AI ---
   if (path === '/api/ai/shazam' || path === '/api/shazam') return shazamRoute(req, url);
@@ -96,6 +111,8 @@ export async function router(req: Request): Promise<Response> {
   if (path === '/api/ai/gemini' || path === '/api/gemini') return geminiRoute(req, url);
   if (path === '/api/ai/image') return imageGenerationRoute(req);
   if (path === '/api/ai/image/status') return imageGenerationStatusRoute(req, url);
+  if (path === '/api/ai/ocr') return ocrRoute(req, url);
+  if (path === '/api/ai/summarize') return summarizeRoute(req);
 
   // --- API SEARCH ---
   if (path === '/api/search/youtube' || path === '/api/ytsearch') return ytSearchRoute(req, url);
@@ -114,6 +131,7 @@ export async function router(req: Request): Promise<Response> {
   if (path === '/api/canvas/attp' || path === '/api/attp') return canvasAttpRoute(req, url);
   if (path === '/api/canvas/effects') return canvasEffectsRoute(req, url);
   if (path === '/api/transcribe' || path === '/api/audio/transcribe') return transcribeRoute(req, url);
+  if (path === '/api/audio/summarize') return audioSummarizeRoute(req, url);
 
   // --- ADMIN ---
   if (path === '/api/admin/users') return userManagerRoute(req);

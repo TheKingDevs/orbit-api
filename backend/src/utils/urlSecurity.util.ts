@@ -1,7 +1,18 @@
 import { isIP } from 'node:net';
 import { InvalidParameterError } from '@errors/index';
 
-export type TrustedPlatform = 'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'soundcloud' | 'pinterest';
+export type TrustedPlatform =
+  | 'youtube'
+  | 'tiktok'
+  | 'instagram'
+  | 'facebook'
+  | 'soundcloud'
+  | 'pinterest'
+  | 'spotify'
+  | 'threads'
+  | 'google-drive'
+  | 'capcut'
+  | 'twitter';
 
 export interface PlatformRule {
   name: string;
@@ -39,6 +50,31 @@ export const PLATFORM_RULES: Record<TrustedPlatform, PlatformRule> = {
     name: 'Pinterest',
     regex: /^(?:[a-zA-Z0-9-]+\.)*(?:pinterest\.[a-z.]{2,6}|pin\.it)$/i,
     example: 'https://br.pinterest.com/pin/... ou https://pin.it/...'
+  },
+  spotify: {
+    name: 'Spotify',
+    regex: /^(?:(?:www|open)\.)?spotify\.com$|^(?:www\.)?spotify\.link$/i,
+    example: 'https://open.spotify.com/track/...'
+  },
+  threads: {
+    name: 'Threads',
+    regex: /^(?:[a-zA-Z0-9-]+\.)*threads\.(?:com|net)$/i,
+    example: 'https://www.threads.com/@usuario/post/...'
+  },
+  'google-drive': {
+    name: 'Google Drive',
+    regex: /^drive\.google\.com$/i,
+    example: 'https://drive.google.com/file/d/.../view'
+  },
+  capcut: {
+    name: 'CapCut',
+    regex: /^(?:[a-zA-Z0-9-]+\.)*capcut\.com$/i,
+    example: 'https://www.capcut.com/template-detail/...'
+  },
+  twitter: {
+    name: 'Twitter/X',
+    regex: /^(?:[a-zA-Z0-9-]+\.)*(?:twitter\.com|x\.com)$/i,
+    example: 'https://x.com/usuario/status/...'
   }
 };
 
