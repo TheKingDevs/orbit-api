@@ -6,6 +6,7 @@ import { CSRF_COOKIE, SESSION_COOKIE, sessionManager } from '@services/session.s
 import { markAuthenticatedRequest } from '@services/requestTrace.service';
 import { normalizeBaseUrl } from '@utils/url.util';
 import { getConfiguredCorsOrigins } from '@utils/cors.util';
+import { recordFailedApiKeyAttempt } from '@utils/authRateLimit.util';
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const PREVIEW_QUERY = 'docs';
@@ -155,6 +156,7 @@ export function authMiddleware(req: Request, requiredRoles?: UserRole[], consume
     const apiKey = apiKeyHeader?.trim() || apiKeyFromQuery?.trim();
 
     if (!apiKey) {
+      recordFailedApiKeyAttempt(req);
       throw new UnauthorizedError('API Key necessária. Envie o header x-apikey ou o parâmetro apikey na URL.');
     }
 
@@ -162,7 +164,12 @@ export function authMiddleware(req: Request, requiredRoles?: UserRole[], consume
       throw new ForbiddenError('A pré-visualização da documentação exige uma sessão autenticada.');
     }
 
-    user = db.validateAndIncrementApiKey(apiKey, req, consumeToken);
+    try {
+      user = db.validateAndIncrementApiKey(apiKey, req, consumeToken);
+    } catch (error) {
+      if (error instanceof UnauthorizedError) recordFailedApiKeyAttempt(req);
+      throw error;
+    }
 
     if (requiredRoles && requiredRoles.length > 0 && !requiredRoles.includes(user.role)) {
       throw new ForbiddenError(`Seu cargo (${user.role}) não possui autorização para este recurso.`);

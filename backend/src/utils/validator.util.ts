@@ -4,6 +4,14 @@ import { TtpSchema, TtpDTO } from '@types/ttp.type';
 import { TranscribeSchema, TranscribeDTO } from '@types/transcribe.type';
 import { StickerSchema, StickerDTO } from '@types/sticker.type';
 import { CreateUserSchema, CreateUserDTO } from '@types/user.type';
+import {
+  AudioSummarizeOptionsSchema,
+  AudioSummarizeOptionsDTO,
+  OcrSchema,
+  OcrDTO,
+  SummarizeSchema,
+  SummarizeDTO
+} from '@types/ai.type';
 import { InvalidParameterError } from '@errors/index';
 
 export class ValidatorUtil {
@@ -51,6 +59,42 @@ export class ValidatorUtil {
         message: err.message
       }));
       throw new InvalidParameterError('Parâmetros de transcrição inválidos.', formattedErrors);
+    }
+    return result.data;
+  }
+
+  static validateOcrPayload(payload: any): OcrDTO {
+    const result = OcrSchema.safeParse(payload);
+    if (!result.success) {
+      const formattedErrors = result.error.issues.map(err => ({
+        field: err.path.join('.'),
+        message: err.message
+      }));
+      throw new InvalidParameterError('Parâmetros de OCR inválidos.', formattedErrors);
+    }
+    return result.data;
+  }
+
+  static validateSummarizePayload(payload: any): SummarizeDTO {
+    const result = SummarizeSchema.safeParse(payload);
+    if (!result.success) {
+      const formattedErrors = result.error.issues.map(err => ({
+        field: err.path.join('.'),
+        message: err.message
+      }));
+      throw new InvalidParameterError('Parâmetros de resumo inválidos.', formattedErrors);
+    }
+    return result.data;
+  }
+
+  static validateAudioSummarizeOptions(payload: any): AudioSummarizeOptionsDTO {
+    const result = AudioSummarizeOptionsSchema.safeParse(payload);
+    if (!result.success) {
+      const formattedErrors = result.error.issues.map(err => ({
+        field: err.path.join('.'),
+        message: err.message
+      }));
+      throw new InvalidParameterError('Opções de resumo inválidas.', formattedErrors);
     }
     return result.data;
   }

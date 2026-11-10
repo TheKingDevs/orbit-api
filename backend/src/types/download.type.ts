@@ -44,6 +44,8 @@ export const DownloadSchema = z.object({
 
 export type DownloadRequestDTO = z.infer<typeof DownloadSchema>;
 
+export type BtchDownloadPlatform = 'spotify' | 'threads' | 'google-drive' | 'capcut' | 'twitter';
+
 export interface DownloadContext {
   baseUrl?: string;
 }

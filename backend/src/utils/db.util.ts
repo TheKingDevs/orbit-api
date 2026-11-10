@@ -1,8 +1,8 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Collection } from 'mongodb';
 import { User } from '@models/User';
 import { IUserService } from '@interface/IUser';
-import { UnauthorizedError, ForbiddenError } from '@errors/index';
+import { UnauthorizedError, ForbiddenError, RateLimitError } from '@errors/index';
 import { Logger } from '@utils/logger';
 import { sessionManager } from '@services/session.service';
 import { getDatabase } from '@services/mongo.service';
@@ -19,7 +19,14 @@ interface RateLimitTracker {
   timestamps: number[];
   tempBlockUntil: number;
   violations: number;
+  lastSeenAt: number;
+  lastViolationAt: number;
 }
+
+const MAX_RATE_LIMIT_TRACKERS = 50_000;
+const RATE_LIMIT_TRACKER_TTL_MS = 60 * 60 * 1000;
+const RATE_LIMIT_CLEANUP_INTERVAL_MS = 60 * 1000;
+const LEGACY_AUTOBAN_REASON = 'Banido permanentemente por 3 tentativas de ataques DDoS / RateLimit violado.';
 
 interface RequestRecordInput {
   method: string;
@@ -234,7 +241,7 @@ class UserDatabase implements IUserService {
   private users: Map<string, User> = new Map();
   private tokenRateLimits: Map<string, RateLimitTracker> = new Map();
   private fingerprintRateLimits: Map<string, RateLimitTracker> = new Map();
-  private bannedFingerprints: Set<string> = new Set();
+  private lastRateLimitCleanupAt = 0;
   private requestHistory: Map<string, RequestRecord[]> = new Map();
   private requestDailyUsage: Map<string, Map<string, number>> = new Map();
   private requestEndpointUsage: Map<string, Map<string, number>> = new Map();
@@ -324,9 +331,15 @@ class UserDatabase implements IUserService {
 
     for (const document of documents) {
       const user = fromUserDocument(document);
+      const wasRateLimitAutoBanned = user.isSuspended && user.suspensionReason === LEGACY_AUTOBAN_REASON;
+      if (wasRateLimitAutoBanned) {
+        user.isSuspended = false;
+        user.suspensionReason = undefined;
+        user.violationCount = 0;
+      }
       this.addUserInMemory(user);
 
-      if (needsUserMigration(document)) {
+      if (wasRateLimitAutoBanned || needsUserMigration(document)) {
         await this.persistUser(user);
       }
     }
@@ -692,48 +705,70 @@ class UserDatabase implements IUserService {
   }
 
   public generateFingerprint(req: Request): string {
-    const cfIp = req.headers.get('cf-connecting-ip') || '';
-    const xForwarded = req.headers.get('x-forwarded-for') || '';
+    // Render overwrites CF-Connecting-IP at its edge. Do not trust client-controlled X-Forwarded-For.
+    const cfIp = req.headers.get('cf-connecting-ip') || 'unknown-client';
     const userAgent = req.headers.get('user-agent') || 'unknown-ua';
     const acceptLang = req.headers.get('accept-language') || 'unknown-lang';
     const acceptEnc = req.headers.get('accept-encoding') || 'unknown-enc';
+    const rawSignature = `${cfIp}|${userAgent}|${acceptLang}|${acceptEnc}`;
+    return `fp_${createHash('sha256').update(rawSignature).digest('hex')}`;
+  }
 
-    const rawSignature = `${cfIp}|${xForwarded}|${userAgent}|${acceptLang}|${acceptEnc}`;
-    let hash = 0;
-    for (let i = 0; i < rawSignature.length; i++) {
-      hash = (hash << 5) - hash + rawSignature.charCodeAt(i);
-      hash |= 0;
+  private cleanupRateLimitTrackers(now: number): void {
+    if (now - this.lastRateLimitCleanupAt < RATE_LIMIT_CLEANUP_INTERVAL_MS) return;
+    this.lastRateLimitCleanupAt = now;
+
+    for (const [key, tracker] of this.tokenRateLimits) {
+      if (now - tracker.lastSeenAt > RATE_LIMIT_TRACKER_TTL_MS && now >= tracker.tempBlockUntil) {
+        this.tokenRateLimits.delete(key);
+      }
     }
-    return `fp_${Math.abs(hash)}_${userAgent.substring(0, 15)}`;
+    for (const [key, tracker] of this.fingerprintRateLimits) {
+      if (now - tracker.lastSeenAt > RATE_LIMIT_TRACKER_TTL_MS && now >= tracker.tempBlockUntil) {
+        this.fingerprintRateLimits.delete(key);
+      }
+    }
+  }
+
+  private getRateLimitTracker(
+    trackers: Map<string, RateLimitTracker>,
+    key: string,
+    now: number
+  ): RateLimitTracker {
+    let tracker = trackers.get(key);
+    if (tracker) {
+      tracker.lastSeenAt = now;
+      trackers.delete(key);
+      trackers.set(key, tracker);
+      return tracker;
+    }
+
+    while (trackers.size >= MAX_RATE_LIMIT_TRACKERS) {
+      const oldest = trackers.keys().next().value;
+      if (oldest === undefined) break;
+      trackers.delete(oldest);
+    }
+
+    tracker = { timestamps: [], tempBlockUntil: 0, violations: 0, lastSeenAt: now, lastViolationAt: 0 };
+    trackers.set(key, tracker);
+    return tracker;
   }
 
   public checkRateLimitAndDDoS(user: User, limiterKey: string, fingerprint: string): void {
     const now = Date.now();
-
-    if (this.bannedFingerprints.has(fingerprint)) {
-      throw new ForbiddenError('Seu dispositivo/rede foi banido permanentemente devido a tentativas repetidas de ataque DDoS.');
-    }
-
-    let fpTracker = this.fingerprintRateLimits.get(fingerprint);
-    if (!fpTracker) {
-      fpTracker = { timestamps: [], tempBlockUntil: 0, violations: 0 };
-      this.fingerprintRateLimits.set(fingerprint, fpTracker);
-    }
+    this.cleanupRateLimitTrackers(now);
+    const fpTracker = this.getRateLimitTracker(this.fingerprintRateLimits, fingerprint, now);
 
     if (now < fpTracker.tempBlockUntil) {
       const remainingSec = Math.ceil((fpTracker.tempBlockUntil - now) / 1000);
-      throw new ForbiddenError(`Dispositivo bloqueado temporariamente por atividade suspeita. Tente novamente em ${remainingSec} segundos.`);
+      throw new RateLimitError('Muitas requisições. Aguarde um pouco e tente novamente.', remainingSec);
     }
 
-    let tokenTracker = this.tokenRateLimits.get(limiterKey);
-    if (!tokenTracker) {
-      tokenTracker = { timestamps: [], tempBlockUntil: 0, violations: 0 };
-      this.tokenRateLimits.set(limiterKey, tokenTracker);
-    }
+    const tokenTracker = this.getRateLimitTracker(this.tokenRateLimits, limiterKey, now);
 
     if (now < tokenTracker.tempBlockUntil) {
       const remainingSec = Math.ceil((tokenTracker.tempBlockUntil - now) / 1000);
-      throw new ForbiddenError(`Acesso temporariamente bloqueado por disparos simultâneos excessivos (Anti-DDoS). Aguarde ${remainingSec}s.`);
+      throw new RateLimitError('Muitas requisições. Aguarde um pouco e tente novamente.', remainingSec);
     }
 
     tokenTracker.timestamps = tokenTracker.timestamps.filter(t => now - t < 10000);
@@ -745,29 +780,17 @@ class UserDatabase implements IUserService {
     if (tokenTracker.timestamps.length > 15 || fpTracker.timestamps.length > 20) {
       tokenTracker.violations += 1;
       fpTracker.violations += 1;
+      if (now - tokenTracker.lastViolationAt > 30 * 60 * 1000) tokenTracker.violations = 1;
+      if (now - fpTracker.lastViolationAt > 30 * 60 * 1000) fpTracker.violations = 1;
+      tokenTracker.lastViolationAt = now;
+      fpTracker.lastViolationAt = now;
 
-      const isPublicUser = user.role === 'public';
-
-      if (tokenTracker.violations >= 3 || fpTracker.violations >= 3) {
-        if (isPublicUser) {
-          this.bannedFingerprints.add(fingerprint);
-        }
-        user.isSuspended = true;
-        user.suspensionReason = 'Banido permanentemente por 3 tentativas de ataques DDoS / RateLimit violado.';
-        this.scheduleUserSave(user);
-        Logger.error(`Usuário ${user.id} (Fingerprint: ${fingerprint}) SUSPENSO PERMANENTEMENTE após 3 violações de DDoS.`, 'Anti-DDoS');
-        throw new ForbiddenError('Acesso revogado permanentemente. Este acesso e seu dispositivo foram banidos por excederem as violações de segurança.');
-      }
-
-      const blockDurationMs = 5 * 60 * 1000;
+      const violations = Math.max(tokenTracker.violations, fpTracker.violations);
+      const blockDurationMs = Math.min(30 * 60 * 1000, 60_000 * 2 ** Math.min(violations - 1, 5));
       tokenTracker.tempBlockUntil = now + blockDurationMs;
       fpTracker.tempBlockUntil = now + blockDurationMs;
-
-      user.violationCount = (user.violationCount || 0) + 1;
-      this.scheduleUserSave(user);
-
-      Logger.warning(`Atividade suspeita de DDoS detectada! Usuário: ${user.id} | Violação #${tokenTracker.violations}/3. Bloqueado por 5 minutos.`, 'Anti-DDoS');
-      throw new ForbiddenError(`Muitas requisições simultâneas detectadas. Atividade marcada como suspeita. Acesso bloqueado por 5 minutos (Infração ${tokenTracker.violations}/3).`);
+      Logger.warning(`Limite de requisições excedido para usuário ${user.id}; bloqueio temporário de ${Math.ceil(blockDurationMs / 1000)}s.`, 'RateLimit');
+      throw new RateLimitError('Muitas requisições. Aguarde um pouco e tente novamente.', Math.ceil(blockDurationMs / 1000));
     }
   }
 

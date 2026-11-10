@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (build + tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_ENV: test
+      DATA_ENCRYPTION_KEY: orbit-ci-test-key-with-at-least-32-chars
+      MONGO_URI: ""
+      OWNER_API_KEY: ci-owner-token
+      ADMIN_API_KEY: ci-admin-token
+      PUBLIC_API_KEY: ci-public-token
+      OWNER_EMAIL: ci-owner@orbit.test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - name: Install dependencies
+        working-directory: backend
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        working-directory: backend
+        run: bun run build
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Run unit tests
+        working-directory: backend
+        shell: bash
+        run: |
+          mapfile -t tests < <(find src/tests -maxdepth 1 -name '*.test.ts' ! -name 'pinterest.test.ts' | sort)
+          bun test "${tests[@]}" --timeout 30000
+
+  frontend:
+    name: Frontend (lint + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BACKEND_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_APP_NAME: Orbit API
+      NEXT_PUBLIC_SITE_URL: https://0rbit-api.vercel.app
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm install --no-audit --no-fund
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+  docker:
+    name: Backend Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          load: false
+          tags: orbit-backend:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

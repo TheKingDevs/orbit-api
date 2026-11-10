@@ -22,8 +22,8 @@ O frontend encaminha `/api`, `/storage`, `/preview/ttp` e os assets necessários
 
 ## Funcionalidades
 
-- Downloads de Instagram, TikTok (vídeo, áudio e imagens/slides), Pinterest (URL ou pesquisa), YouTube, Facebook e SoundCloud.
-- Inteligência artificial com GPT, Groq, Gemini e identificação musical com Shazam.
+- Downloads de Instagram, TikTok (vídeo, áudio e imagens/slides), Pinterest (URL ou pesquisa), YouTube, Facebook, SoundCloud, Spotify, Threads, Google Drive, CapCut e Twitter/X.
+- Inteligência artificial com GPT, Groq, Gemini, OCR local de imagens, resumo de texto e resumo de áudio com transcrição Whisper.
 - Pesquisas de YouTube (`v1` e `v2`) e wallpapers.
 - Geração de cards e imagens com Canvas (`welcome`, `goodbye`, `ttp`, `attp` e efeitos).
 - Criação de stickers (`ttp`, `attp`, `brat`, `abrat`) e conversão para GIF.
@@ -48,7 +48,7 @@ flowchart TB
     subgraph RENDER["Render"]
         BE["Backend Bun<br/>backend/"]
         AUTH["Google OAuth<br/>sessões e cookies"]
-        DL["Downloads e IA<br/>devworldbr-sdk"]
+        DL["Downloads e IA<br/>devworldbr-sdk + btch-downloader"]
         ART["Canvas e stickers<br/>@napi-rs/canvas + ffmpeg"]
         TR["Transcrição<br/>sherpa-onnx Whisper"]
         ST[("Storage<br/>backend/storage")]
@@ -75,9 +75,9 @@ Diagramas adicionais:
 | Camada | Tecnologias |
 | --- | --- |
 | Frontend | Next.js 16, React 19, Tailwind CSS 4, TypeScript |
-| Backend | Bun, TypeScript, `@napi-rs/canvas`, `ffmpeg`, `yt-dlp`, Deno, `sherpa-onnx`, `jose`, `zod` |
+| Backend | Bun, TypeScript, `@napi-rs/canvas`, `ffmpeg`, SDK DevWorld, `sherpa-onnx`, `jose`, `zod` |
 | Infraestrutura | GitHub, Render, Vercel |
-| Integrações | Google OAuth, Hugging Face |
+| Integrações | Google OAuth, Hugging Face, `btch-downloader` |
 
 ## Estrutura do repositório
 
@@ -98,7 +98,8 @@ Diagramas adicionais:
   - 📁 `diagrams` ➔ _arquitetura, deploy e fluxo de contribuição_
 - 📁 `scripts` ➔ _scripts de build e deploy_
 - 📝 `Makefile` ➔ _atalhos de desenvolvimento e produção_
-- 📝 `CONTRIBUTING.md` ➔ _guia de contribuição_
+- 📝 `CONTRIBUTING.md` ➔ _guia resumido de contribuição_
+- 📝 `COMO_COLABORAR.md` ➔ _boas práticas, commits e fluxo de CI/CD_
 - 📝 `LICENSE` ➔ _termos da licença_
 - 📝 `README.md` ➔ _visão geral do monorepo_
 
@@ -107,7 +108,6 @@ Diagramas adicionais:
 - [Bun](https://bun.sh/) instalado (backend).
 - Node.js 20.9 ou superior e npm (frontend).
 - `ffmpeg` disponível no `PATH` para processamento local de mídia.
-- Node.js 22+ ou Deno para extração de mídia do YouTube via yt-dlp (Docker instala Deno).
 - Git.
 - Docker é opcional; o backend possui `backend/Dockerfile`.
 
@@ -142,8 +142,6 @@ Preencha os valores locais. **Nunca versione arquivos `.env`.**
 | `MONGO_DB_NAME` | Nome do banco de dados MongoDB (padrão: `orbit`). |
 | `DATA_ENCRYPTION_KEY` | Chave Base64 de 32 bytes para criptografia e hashes; gere com `openssl rand -base64 32` e não altere sem migração. |
 | `AIHORDE_API_KEY` | Chave opcional para geração de imagens via AI Horde. |
-| `YTDLP_JS_RUNTIME` | Runtime opcional para yt-dlp; vazio detecta Node 22+ e depois Deno. |
-| `TIKTOK_COOKIES_FILE` | Caminho opcional para cookies Netscape privados quando o TikTok exigir sessão. |
 
 ### Frontend (`frontend/.env`)
 
@@ -154,6 +152,7 @@ Preencha os valores locais. **Nunca versione arquivos `.env`.**
 | `NEXT_PUBLIC_SITE_URL` | URL pública do site usada em SEO, Open Graph, sitemap e robots. |
 | `NEXT_PUBLIC_API_URL` | URL pública da API nos exemplos de código. |
 | `NEXT_PUBLIC_WHATSAPP_CHANNEL_URL` | URL do canal de atualizações. |
+| `NEXT_PUBLIC_WHATSAPP_SUPPORT_URL` | URL de convite para o grupo de suporte. |
 
 ## Instalação
 
@@ -164,7 +163,7 @@ bun install --frozen-lockfile
 
 # frontend
 cd ../frontend
-npm ci
+npm install
 ```
 
 ## Desenvolvimento
@@ -233,7 +232,7 @@ npm run build
 A ferramenta em `scripts/deploy.ts` oferece menus, confirmações e mensagens de progresso para publicar frontend, backend ou ambos. Ela executa os CLIs oficiais e deixa os binários locais ignorados pelo Git:
 
 ```bash
-cd scripts && npm ci
+cd scripts && npm install
 ./deploy.sh
 ```
 
@@ -250,7 +249,7 @@ O código e os metadados oficiais dos comandos estão em [Render CLI](https://re
 - Runtime: Docker.
 - Blueprint: `backend/render.yaml`.
 - Dockerfile: `backend/Dockerfile` (contexto `backend`).
-- A imagem instala `ffmpeg`, `yt-dlp`, Deno, fontes e os modelos Whisper usados pela transcrição.
+- A imagem instala `ffmpeg`, fontes e os modelos Whisper usados pela transcrição; os downloads de mídia usam o SDK DevWorld.
 - Configure as variáveis de ambiente no painel do Render, principalmente `PUBLIC_BASE_URL`, `CORS_ORIGIN`, `FRONTEND_URL`, `BACKEND_URL`, `MONGO_URI`, `DATA_ENCRYPTION_KEY` e as credenciais OAuth.
 - Usuários, sessões e histórico de uso ficam persistidos no MongoDB configurado por `MONGO_URI`.
 - O build filter usa `backend/**`, evitando redeploys causados por mudanças no frontend.
@@ -282,7 +281,7 @@ Os rewrites de `/api`, `/storage`, `/preview/ttp` e `/assets/html-to-image.js` e
 
 ## Contribuição
 
-O fluxo de trabalho, padrões de commit e regras de revisão estão em [CONTRIBUTING.md](CONTRIBUTING.md).
+O fluxo resumido está em [CONTRIBUTING.md](CONTRIBUTING.md). As boas práticas, o padrão de commits e o guia de CI/CD estão em [COMO_COLABORAR.md](COMO_COLABORAR.md).
 
 ## Licença
 

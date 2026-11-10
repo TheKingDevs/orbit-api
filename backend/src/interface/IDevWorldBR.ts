@@ -7,6 +7,8 @@ export interface IDevWorldBRService {
   gemini(query: string | undefined | null): Promise<SdkResponse>;
   ytSearch(query: string | undefined | null): Promise<SdkResponse>;
   ytSearchV2(query: string | undefined | null): Promise<SdkResponse>;
+  youtubeMediaSource(url: string | undefined | null, type: 'audio' | 'video'): string;
+  instagram(url: string | undefined | null): Promise<SdkResponse>;
   tiktokImages(url: string | undefined | null): Promise<SdkResponse>;
   pinterest(queryOrUrl: string | undefined | null): Promise<SdkResponse>;
   facebook(url: string | undefined | null): Promise<SdkResponse>;

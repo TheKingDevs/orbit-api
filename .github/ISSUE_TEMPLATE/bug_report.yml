@@ -1,0 +1,82 @@
+name: Bug
+description: Reporte um comportamento incorreto na Orbit API.
+title: "[bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por reportar um bug. Não inclua tokens, cookies, chaves de API ou dados de usuários na issue.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Descrição
+      description: Explique o problema de forma objetiva.
+      placeholder: O que está acontecendo?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passos para reproduzir
+      description: Liste os passos mínimos para reproduzir o problema.
+      placeholder: |
+        1. Acesse ...
+        2. Envie uma requisição para ...
+        3. Observe o erro ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamento esperado
+      description: O que deveria acontecer?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Comportamento atual
+      description: O que aconteceu de fato? Inclua mensagens de erro sem dados sensíveis.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área afetada
+      options:
+        - Backend
+        - Frontend
+        - Ambos
+        - Infraestrutura / deploy
+        - Documentação
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Versão ou commit
+      description: Informe a branch, tag ou commit em que o problema ocorreu.
+      placeholder: main / 1af0dad
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs relevantes
+      description: Cole apenas trechos de log sem segredos ou dados pessoais.
+      render: shell
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Confirmação
+      options:
+        - label: Removi tokens, chaves, cookies e dados de usuários desta issue.
+          required: true

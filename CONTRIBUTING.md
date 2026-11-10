@@ -2,6 +2,8 @@
 
 A Orbit API é um projeto **privado e confidencial** da **TheKingDevs**. Ao contribuir, você concorda em manter o código, os dados e as informações do projeto sob sigilo, conforme a [LICENSE](LICENSE).
 
+Para o guia detalhado de boas práticas, consulte [COMO_COLABORAR.md](COMO_COLABORAR.md).
+
 ## Acesso e propriedade
 
 - Contribuições são permitidas apenas para pessoas autorizadas pela TheKingDevs.
@@ -20,20 +22,17 @@ Cada equipe atua exclusivamente na sua pasta:
 
 ### Regra de ouro
 
-**Cada commit deve alterar apenas uma aplicação.** Não misture `backend/` e `frontend/` no mesmo commit.
+**Não use commits atômicos.** Agrupe as mudanças relacionadas em um commit coeso e descritivo. Não fragmente uma mesma entrega em vários commits pequenos só para separar pastas ou arquivos.
 
-Se uma funcionalidade exigir mudanças nas duas pastas, divida em commits separados:
+Um commit pode incluir `backend/`, `frontend/`, `.github/` e documentação quando tudo fizer parte da mesma entrega. O que não pode é misturar assuntos sem relação.
 
-```text
-feat(backend): adiciona endpoint de exportação
-feat(frontend): consome endpoint de exportação
-```
+Se uma mudança independente for grande, ela pode ser separada em mais de um commit. O critério é coesão, não quantidade.
 
 ## Fluxo de trabalho
 
 1. Atualize sua `main` local.
 2. Crie uma branch a partir de `main`.
-3. Faça commits pequenos e focados em uma única pasta.
+3. Agrupe as mudanças relacionadas em um commit coeso e descritivo.
 4. Abra um Pull Request para `main`.
 5. Aguarde aprovação do code owner e os checks de CI.
 6. Faça o merge somente com o PR aprovado.
@@ -84,7 +83,7 @@ ci: add backend path filter
 
 ## Pull Requests
 
-Um PR deve ser focado em uma única aplicação. Se precisar alterar as duas, abra PRs separados ou deixe isso explícito para os maintainers.
+Um PR deve ter um objetivo claro. Evite PRs gigantes com assuntos não relacionados. Quando a mudança for interdependente, um único PR pode alterar backend e frontend; descreva o escopo e o impacto para os maintainers.
 
 Inclua na descrição:
 
@@ -96,8 +95,9 @@ Inclua na descrição:
 
 ### Checklist
 
-- [ ] O PR altera apenas uma pasta de aplicação.
-- [ ] Os commits seguem o padrão `tipo(escopo): descrição`.
+- [ ] As mudanças do PR estão relacionadas e o escopo está descrito.
+- [ ] Os commits são coesos e seguem o padrão `tipo(escopo): descrição`.
+- [ ] A entrega não foi fragmentada em commits atômicos.
 - [ ] Os testes do backend passam.
 - [ ] O lint e o build do frontend passam.
 - [ ] Nenhum `.env`, token, chave ou credencial foi commitado.
@@ -109,33 +109,45 @@ Inclua na descrição:
 ```bash
 # backend
 cd backend
-bun test
+bun install --frozen-lockfile
 bun run build
+bun test
 
 # frontend
 cd frontend
+npm install
 npm run lint
 npm run build
 ```
 
+O teste do Pinterest depende de rede externa. A CI executa os demais testes; o Pinterest roda no workflow de integração agendado. Para validar localmente:
+
+```bash
+cd backend
+bun test src/tests/pinterest.test.ts --timeout 30000
+```
+
 ## Revisão e CODEOWNERS
 
-Recomenda-se configurar `.github/CODEOWNERS`:
+O arquivo `.github/CODEOWNERS` define os responsáveis por área. Ajuste os handles dos times conforme a organização:
 
 ```text
-/backend/    @org/time-back
-/frontend/   @org/time-front
-/.github/    @org/admins
-/scripts/    @org/admins
-/README.md   @org/admins
-/LICENSE     @org/admins
+*                       @TheKingDevs/admins
+/backend/               @TheKingDevs/time-back
+/frontend/              @TheKingDevs/time-front
+/.github/               @TheKingDevs/admins
+/scripts/               @TheKingDevs/admins
+/README.md              @TheKingDevs/admins
+/CONTRIBUTING.md        @TheKingDevs/admins
+/COMO_COLABORAR.md      @TheKingDevs/admins
+/LICENSE                @TheKingDevs/admins
 ```
 
 Proteja a branch `main` com:
 
 - Pull Request obrigatório.
 - Pelo menos uma aprovação.
-- Aprovação do code owner da pasta alterada.
+- Aprovação do code owner da área alterada.
 - Checks de CI obrigatórios.
 - Histórico linear ou política de merge definida pela organização.
 
@@ -151,9 +163,10 @@ Proteja a branch `main` com:
 
 - Commits em `backend/**` disparam o deploy do backend no Render.
 - Commits em `frontend/**` disparam o deploy do frontend na Vercel.
+- O workflow `.github/workflows/cd.yml` publica a imagem do backend no GHCR e pode disparar hooks opcionais de deploy.
 - Mudanças na raiz, em `assets/` ou em `scripts/` devem ser avaliadas pelos maintainers para não gerar deploys desnecessários.
 - Não altere configurações de deploy sem alinhamento prévio.
 
 ## Dúvidas
 
-Fale com os maintainers da TheKingDevs antes de iniciar mudanças grandes, sensíveis ou que afetem as duas aplicações.
+Fale com os maintainers da TheKingDevs antes de iniciar mudanças grandes, sensíveis ou que afetem as duas aplicações. Consulte também o [COMO_COLABORAR.md](COMO_COLABORAR.md) para o guia completo de boas práticas.

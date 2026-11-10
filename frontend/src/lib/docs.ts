@@ -19,6 +19,10 @@ export type DocPreview =
   | "media"
   | "effects"
   | "transcribe"
+  | "audio-summarize"
+  | "download"
+  | "ocr"
+  | "summarize"
   | "to-gif"
   | "image-generation";
 
@@ -309,6 +313,24 @@ export const DOCS: ApiDoc[] = [
       }
     ]
   },
+  {
+    slug: ["audio", "summarize"],
+    section: "Audio AI",
+    title: "Resumir áudio",
+    description:
+      "Transcreve um áudio ou vídeo com o Whisper local e resume o conteúdo reconhecido usando a integração GPT.",
+    method: "POST",
+    path: "/api/audio/summarize",
+    cost: "1 request",
+    preview: "audio-summarize",
+    params: [
+      TOKEN_PARAM,
+      { name: "file", type: "file", required: true, description: "Áudio ou vídeo em multipart/form-data. Até 50 MB e 10 minutos; o texto transcrito precisa caber no limite de 10.000 caracteres do resumo." },
+      { name: "language", type: "text", required: false, description: "Idioma do áudio: auto, pt ou en. Padrão: auto." },
+      { name: "style", type: "text", required: false, description: "Formato: paragraph ou bullets. Padrão: paragraph." },
+      { name: "length", type: "text", required: false, description: "Tamanho: short, medium ou detailed. Padrão: medium." }
+    ]
+  },
   downloadDoc(
     "instagram",
     "instagram",
@@ -489,6 +511,61 @@ export const DOCS: ApiDoc[] = [
     [],
     { preview: "audio" }
   ),
+  downloadDoc(
+    "spotify",
+    "spotify",
+    "Spotify",
+    "Retorna metadados e links de mídia de conteúdo público do Spotify. A resposta contém links resolvidos pelo serviço de download; a Orbit não hospeda os arquivos.",
+    [],
+    {
+      preview: "download",
+      example: { url: "https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC" }
+    }
+  ),
+  downloadDoc(
+    "threads",
+    "threads",
+    "Threads",
+    "Retorna informações e links de mídia de uma publicação pública do Threads.",
+    [],
+    {
+      preview: "download",
+      example: { url: "https://www.threads.com/@usuario/post/POST_ID" }
+    }
+  ),
+  downloadDoc(
+    "google-drive",
+    "google-drive",
+    "Google Drive",
+    "Resolve um arquivo público do Google Drive e retorna seus metadados e link de download. O arquivo precisa estar acessível por link.",
+    [],
+    {
+      preview: "download",
+      example: { url: "https://drive.google.com/file/d/FILE_ID/view" }
+    }
+  ),
+  downloadDoc(
+    "capcut",
+    "capcut",
+    "CapCut",
+    "Retorna informações e links de mídia de um template público do CapCut.",
+    [],
+    {
+      preview: "download",
+      example: { url: "https://www.capcut.com/template-detail/TEMPLATE_ID" }
+    }
+  ),
+  downloadDoc(
+    "twitter",
+    "twitter",
+    "Twitter / X",
+    "Retorna informações e links de vídeo de uma publicação pública do Twitter/X.",
+    [],
+    {
+      preview: "download",
+      example: { url: "https://x.com/usuario/status/POST_ID" }
+    }
+  ),
   ttpDoc(
     "Stickers",
     "ttp",
@@ -563,6 +640,22 @@ export const DOCS: ApiDoc[] = [
     ]
   },
   {
+    slug: ["image-ai", "ocr"],
+    section: "Image AI",
+    title: "OCR de imagem",
+    description:
+      "Extrai texto de imagens localmente usando Tesseract OCR. Aceita PNG, JPEG, GIF, WebP, BMP e TIFF até 15 MB.",
+    method: "POST",
+    path: "/api/ai/ocr",
+    cost: "1 request",
+    preview: "ocr",
+    params: [
+      TOKEN_PARAM,
+      { name: "file", type: "file", required: true, description: "Imagem em multipart/form-data. Aceita os campos file ou image." },
+      { name: "language", type: "text", required: false, description: "Idioma do texto: auto, pt ou en. Padrão: auto (português e inglês)." }
+    ]
+  },
+  {
     slug: ["text-ai", "gpt"],
     section: "Text AI",
     title: "GPT",
@@ -580,6 +673,30 @@ export const DOCS: ApiDoc[] = [
         required: true,
         description: "Pergunta ou instrução enviada para a IA."
       }
+    ]
+  },
+  {
+    slug: ["text-ai", "summarize"],
+    section: "Text AI",
+    title: "Resumir texto",
+    description:
+      "Gera um resumo de texto usando a integração GPT já disponível na Orbit API. O texto é enviado ao provedor de IA para processamento.",
+    method: "POST",
+    path: "/api/ai/summarize",
+    cost: "1 request",
+    preview: "summarize",
+    example: {
+      text: "A Orbit API reúne recursos de downloads, inteligência artificial, canvas, stickers e utilitários em uma única integração.",
+      language: "pt",
+      style: "bullets",
+      length: "short"
+    },
+    params: [
+      TOKEN_PARAM,
+      { name: "text", type: "text", required: true, description: "Texto para resumir. Limite de 10.000 caracteres; textos longos são divididos internamente em partes menores." },
+      { name: "language", type: "text", required: false, description: "Idioma: auto, pt ou en. Padrão: auto (mesmo idioma do texto)." },
+      { name: "style", type: "text", required: false, description: "Formato: paragraph ou bullets. Padrão: paragraph." },
+      { name: "length", type: "text", required: false, description: "Tamanho: short, medium ou detailed. Padrão: medium." }
     ]
   },
   {
