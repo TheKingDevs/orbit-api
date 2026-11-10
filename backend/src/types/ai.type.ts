@@ -45,3 +45,4 @@ export const AudioSummarizeOptionsSchema = SummaryOptionsSchema.transform(data =
 export type OcrDTO = z.infer<typeof OcrSchema>;
 export type SummarizeDTO = z.infer<typeof SummarizeSchema>;
 export type AudioSummarizeOptionsDTO = z.infer<typeof AudioSummarizeOptionsSchema>;
+export type SummarizeOptions = Pick<SummarizeDTO, 'language' | 'style' | 'length'>;

@@ -8,8 +8,7 @@ Backend REST da Orbit API, executado com Bun e TypeScript. Ele atende os endpoin
 - MongoDB em produção. Sem `MONGO_URI`, o modo local mantém os dados apenas em memória.
 - `ffmpeg` para operações de conversão, composição e merge de mídia quando executadas fora do Docker.
 - Tesseract OCR com dados de idioma português e inglês para usar `/api/ai/ocr` fora do Docker. A imagem de produção já inclui esses pacotes.
-- `yt-dlp` para extração de mídia. A imagem Docker o instala automaticamente.
-- Node.js 22+ ou Deno para resolver desafios JavaScript do YouTube com yt-dlp. A imagem Docker instala Deno; localmente o serviço detecta os runtimes disponíveis.
+- SDK `devworldbr-sdk` para busca e resolução de mídia do YouTube.
 
 ## Configuração local
 
@@ -47,11 +46,11 @@ O servidor escuta em `http://localhost:3000` por padrão. Para executar frontend
 | `MONGO_URI`, `MONGO_DB_NAME` | Conexão e nome do banco. `MONGO_URI` é obrigatório em produção; o nome padrão é `orbit`. |
 | `DATA_ENCRYPTION_KEY` | Chave Base64 de 32 bytes para criptografia AES-256-GCM e hashes HMAC dos dados persistidos. Gere com `openssl rand -base64 32`. |
 | `AIHORDE_API_KEY` | Chave opcional para geração de imagens pelo AI Horde; sem ela, a integração usa a chave pública de baixa prioridade. |
-| `YTDLP_JS_RUNTIME` | Runtime opcional explícito para yt-dlp, por exemplo `node:/usr/bin/node` ou `deno:/usr/local/bin/deno`. Se vazio, tenta Node 22+ e depois Deno. |
 | `TESSERACT_PATH` | Caminho opcional do executável Tesseract. Se vazio, procura `tesseract` no `PATH`. |
-| `TIKTOK_COOKIES_FILE` | Caminho opcional para arquivo Netscape de cookies usado pelo yt-dlp quando o TikTok exigir sessão. Mantenha o arquivo privado e fora do repositório. |
 
 O arquivo [`.env.example`](.env.example) contém valores de desenvolvimento. Não use as chaves de exemplo em produção. `DATA_ENCRYPTION_KEY` precisa permanecer estável enquanto os dados criptografados existentes forem usados; uma troca sem migração impede sua leitura.
+
+Os downloads do YouTube usam a operação `ytSearch` do SDK DevWorld e os endpoints de mídia do provedor. As rotas existentes mantêm os parâmetros `url` e `name` e não dependem de yt-dlp nem de cookies locais.
 
 ## Principais recursos e rotas
 
@@ -105,7 +104,7 @@ As rotas de Spotify, Threads, Google Drive, CapCut e Twitter/X usam `btch-downlo
   - 📁 `utils` ➔ _validação, segurança de URLs, cookies, criptografia e helpers_
   - 📝 `index.ts` ➔ _inicialização do servidor Bun_
 - 📁 `storage` ➔ _arquivos temporários gerados em runtime; não versionar seu conteúdo_
-- 📝 `Dockerfile` ➔ _build compilado e imagem de produção com ffmpeg, yt-dlp, Deno e Whisper_
+- 📝 `Dockerfile` ➔ _build compilado e imagem de produção com ffmpeg e Whisper_
 - 📝 `render.yaml` ➔ _Blueprint de deploy no Render_
 - 📝 `build.config.json` ➔ _configuração do executável compilado_
 - 📝 `package.json` e `bun.lock` ➔ _scripts e dependências Bun_
@@ -127,7 +126,7 @@ O build compila a entrada definida em `build.config.json` como executável Bun m
 
 ## Docker e deploy
 
-O [Dockerfile](Dockerfile) instala `ffmpeg`, Tesseract OCR com português e inglês, `yt-dlp` e Deno, compila o backend e prepara os modelos Whisper. O serviço Render está descrito em [`render.yaml`](render.yaml); no deploy, configure as variáveis secretas no painel, incluindo `MONGO_URI`, `DATA_ENCRYPTION_KEY`, credenciais OAuth e as API keys necessárias.
+O [Dockerfile](Dockerfile) instala `ffmpeg` e Tesseract OCR com português e inglês, compila o backend e prepara os modelos Whisper. O serviço Render está descrito em [`render.yaml`](render.yaml); no deploy, configure as variáveis secretas no painel, incluindo `MONGO_URI`, `DATA_ENCRYPTION_KEY`, credenciais OAuth e as API keys necessárias.
 
 O storage local é temporário e não deve ser tratado como armazenamento permanente. Se o provedor usar instâncias efêmeras, os links antigos deixam de funcionar quando os arquivos locais forem removidos ou a instância reiniciar.
 

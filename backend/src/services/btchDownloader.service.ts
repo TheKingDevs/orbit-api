@@ -1,13 +1,15 @@
 import { capcut, gdrive, spotify, threads, twitter } from 'btch-downloader';
 import { DangerError, InvalidParameterError } from '@errors/index';
+import type { IBtchDownloaderService } from '@interface/IBtchDownloader';
+import type { BtchDownloadPlatform } from '@types/download.type';
 import { Logger } from '@utils/logger';
 import { validateSafeUrl } from '@utils/urlSecurity.util';
 import type { TrustedPlatform } from '@utils/urlSecurity.util';
 
-export type BtchDownloadPlatform = 'spotify' | 'threads' | 'google-drive' | 'capcut' | 'twitter';
 type DownloadMethod = (url: string) => Promise<unknown>;
+type DownloaderDefinition = { label: string; platform: TrustedPlatform; run: DownloadMethod };
 
-const DOWNLOADERS: Record<BtchDownloadPlatform, { label: string; platform: TrustedPlatform; run: DownloadMethod }> = {
+const DOWNLOADERS: Record<BtchDownloadPlatform, DownloaderDefinition> = {
   spotify: { label: 'Spotify', platform: 'spotify', run: spotify },
   threads: { label: 'Threads', platform: 'threads', run: threads },
   'google-drive': { label: 'Google Drive', platform: 'google-drive', run: gdrive },
@@ -15,7 +17,7 @@ const DOWNLOADERS: Record<BtchDownloadPlatform, { label: string; platform: Trust
   twitter: { label: 'Twitter/X', platform: 'twitter', run: twitter }
 };
 
-function sanitizeResponse(response: unknown): unknown {
+function sanitizeResponse(response: unknown): Record<string, unknown> {
   if (!response || typeof response !== 'object' || Array.isArray(response)) {
     return { data: response };
   }
@@ -27,8 +29,11 @@ function sanitizeResponse(response: unknown): unknown {
   return clean;
 }
 
-class BtchDownloaderService {
-  async download(platform: BtchDownloadPlatform, rawUrl: string | undefined | null): Promise<unknown> {
+class BtchDownloaderService implements IBtchDownloaderService {
+  async download(
+    platform: BtchDownloadPlatform,
+    rawUrl: string | undefined | null
+  ): Promise<Record<string, unknown>> {
     const downloader = DOWNLOADERS[platform];
     const url = validateSafeUrl(rawUrl, { platform: downloader.platform, fieldName: 'url' });
 

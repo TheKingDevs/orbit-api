@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import ApiDocView from "@components/docs/ApiDocView";
+import FeedbackPage from "@components/feedback/FeedbackPage";
+import SupportPage from "@components/support/SupportPage";
 import { findDoc } from "@lib/docs";
 import { buildPageMetadata } from "@lib/seo";
 
@@ -36,6 +38,14 @@ export default async function DocPage({ params }: DocPageProps) {
   const doc = findDoc(slug);
 
   if (!doc) notFound();
+
+  if (slug.length === 1 && slug[0] === "sugestao") {
+    return <FeedbackPage />;
+  }
+
+  if (slug.length === 1 && slug[0] === "suporte") {
+    return <SupportPage />;
+  }
 
   return <ApiDocView key={doc.slug.join("/")} doc={doc} />;
 }

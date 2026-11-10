@@ -12,7 +12,13 @@ import { downloadTikTokVideoRoute } from './api/download/tiktok_video';
 import { downloadTikTokImagesRoute } from './api/download/tiktok_images';
 import { downloadFacebookRoute } from './api/download/facebook';
 import { downloadSoundCloudRoute } from './api/download/soundcloud';
-import { createBtchDownloadRoute } from './api/download/btch';
+import {
+  downloadCapCutRoute,
+  downloadGoogleDriveRoute,
+  downloadSpotifyRoute,
+  downloadThreadsRoute,
+  downloadTwitterRoute
+} from './api/download/btch';
 
 import { shazamRoute } from './api/ai/shazam';
 import { gptRoute } from './api/ai/gpt';
@@ -55,12 +61,6 @@ import { deleteUserRoute } from './owner/deleteUser';
 import { updatePlanRoute } from './owner/updatePlan';
 
 import { NotFoundError } from '@errors/index';
-
-const downloadSpotifyRoute = createBtchDownloadRoute('spotify');
-const downloadThreadsRoute = createBtchDownloadRoute('threads');
-const downloadGoogleDriveRoute = createBtchDownloadRoute('google-drive');
-const downloadCapCutRoute = createBtchDownloadRoute('capcut');
-const downloadTwitterRoute = createBtchDownloadRoute('twitter');
 
 export async function router(req: Request): Promise<Response> {
   const url = new URL(req.url);

@@ -6,6 +6,11 @@ export interface TranscriptionInput {
   mimeType?: string;
 }
 
+export interface AudioUploadPayload {
+  languageInput: Record<string, unknown>;
+  input: TranscriptionInput;
+}
+
 export interface TranscriptionEngineResult {
   text: string;
   language: string;

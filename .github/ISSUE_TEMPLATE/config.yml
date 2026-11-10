@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Guia de colaboração
+    url: https://github.com/TheKingDevs/orbit-api/blob/main/COMO_COLABORAR.md
+    about: Leia as boas práticas, o fluxo de branches e o padrão de commits antes de abrir uma issue.
+  - name: Documentação do projeto
+    url: https://github.com/TheKingDevs/orbit-api#readme
+    about: Consulte o README e os guias do backend e do frontend.

@@ -8,8 +8,10 @@ import { db } from '@utils/db.util';
 import { sessionManager } from '@services/session.service';
 import { closeDatabase, connectDatabase } from '@services/mongo.service';
 import { applyCorsHeaders, handleCorsRequest } from '@middlewares/corsMiddleware';
+import { enforceAuthRateLimit } from '@utils/authRateLimit.util';
 
 const port = Number(process.env.PORT) || 3000;
+const MAX_REQUEST_BODY_BYTES = 51 * 1024 * 1024;
 
 function isBrowserNavigation(req: Request): boolean {
   return req.method === 'GET' && (req.headers.get('accept') ?? '').includes('text/html');
@@ -40,6 +42,7 @@ async function start(): Promise<void> {
   const server = Bun.serve({
     port,
     hostname: '0.0.0.0',
+    maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
     async fetch(req, server) {
       const url = new URL(req.url);
       if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/storage/')) {
@@ -55,6 +58,7 @@ async function start(): Promise<void> {
       }
 
       try {
+        enforceAuthRateLimit(req, server.requestIP(req)?.address);
         const response = await router(req);
         finalizeAuthenticatedRequest(req, response.status);
         const corsResponse = applyCorsHeaders(req, response);

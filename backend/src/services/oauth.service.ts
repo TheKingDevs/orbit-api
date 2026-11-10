@@ -7,6 +7,8 @@ const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const GOOGLE_JWKS = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 const GOOGLE_ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];
 const TRANSACTION_TTL_MS = 10 * 60 * 1000;
+const TRANSACTION_CLEANUP_INTERVAL_MS = 60 * 1000;
+const MAX_PENDING_TRANSACTIONS = 10_000;
 
 export interface GoogleProfile {
   subject: string;
@@ -29,6 +31,16 @@ export class OAuthError extends Error {
 }
 
 const transactions = new Map<string, OAuthTransaction>();
+let lastTransactionCleanupAt = 0;
+
+function cleanupTransactions(now: number, force = false): void {
+  if (!force && now - lastTransactionCleanupAt < TRANSACTION_CLEANUP_INTERVAL_MS) return;
+  lastTransactionCleanupAt = now;
+
+  for (const [key, transaction] of transactions) {
+    if (now >= transaction.expiresAt) transactions.delete(key);
+  }
+}
 
 function sha256(value: string): string {
   return createHash('sha256').update(value).digest('hex');
@@ -66,8 +78,10 @@ export function createAuthorizationRequest(): { url: string; state: string } {
 
   const now = Date.now();
 
-  for (const [key, transaction] of transactions.entries()) {
-    if (now >= transaction.expiresAt) transactions.delete(key);
+  cleanupTransactions(now);
+  if (transactions.size >= MAX_PENDING_TRANSACTIONS) cleanupTransactions(now, true);
+  if (transactions.size >= MAX_PENDING_TRANSACTIONS) {
+    throw new OAuthError('oauth_overloaded', 'O login está temporariamente ocupado. Tente novamente em instantes.');
   }
 
   transactions.set(sha256(state), {

@@ -9,6 +9,13 @@ function sanitizeErrorMessage(message: string): string {
   return message;
 }
 
+function publicErrorMessage(error: AppError): string {
+  if (error.statusCode >= 500) {
+    return 'Ocorreu um erro temporário no serviço. Tente novamente mais tarde.';
+  }
+  return sanitizeErrorMessage(error.message);
+}
+
 export function handleRouteError(error: unknown, path: string = ''): Response {
   if (error instanceof InvalidParameterError) {
     Logger.warning(`Parâmetros inválidos em ${path}: ${error.message}`, 'InvalidParameterError');
@@ -24,14 +31,19 @@ export function handleRouteError(error: unknown, path: string = ''): Response {
   }
 
   if (error instanceof AppError) {
-    Logger.warning(`Erro ${error.statusCode}, Página "${path}" - ${error.message}`, error.errorType);
+    if (error.statusCode !== 429) {
+      Logger.warning(`Erro ${error.statusCode}, Página "${path}" - ${error.message}`, error.errorType);
+    }
+    const headers = error.statusCode === 429 && 'retryAfterSeconds' in error
+      ? { 'Retry-After': String(error.retryAfterSeconds) }
+      : undefined;
     return Response.json(
       {
         success: false,
         errorType: error.errorType,
-        message: sanitizeErrorMessage(error.message)
+        message: publicErrorMessage(error)
       },
-      { status: error.statusCode }
+      { status: error.statusCode, headers }
     );
   }
 

@@ -6,6 +6,7 @@ import { SdkResponse } from '@types/devworldbr.type';
 import { validateSafeUrl, TrustedPlatform } from '@utils/urlSecurity.util';
 
 const PROMO_KEYS = ['criador', 'whatsapp'] as const;
+const DEVWORLD_API_BASE = (process.env.DEVWORLDBR_API_BASE || 'https://api.devworldbr.site/api').replace(/\/+$/, '');
 
 function sanitizeResponse(response: unknown): SdkResponse {
   if (!response || typeof response !== 'object' || Array.isArray(response)) {
@@ -102,6 +103,16 @@ class DevWorldBRService implements IDevWorldBRService {
   ytSearchV2(query: string | undefined | null): Promise<SdkResponse> {
     const text = requireText(query, 'query');
     return execute('ytsearch_v2', () => dwbr.ytSearch2(text));
+  }
+
+  youtubeMediaSource(url: string | undefined | null, type: 'audio' | 'video'): string {
+    const link = requireUrl(url, 'url', 'youtube');
+    return `${DEVWORLD_API_BASE}/downloads/youtube/${type}/v1?link=${encodeURIComponent(link)}`;
+  }
+
+  instagram(url: string | undefined | null): Promise<SdkResponse> {
+    const link = requireUrl(url, 'url', 'instagram');
+    return execute('instagram_download', () => dwbr.igdl(link));
   }
 
   async tiktokImages(url: string | undefined | null): Promise<SdkResponse> {

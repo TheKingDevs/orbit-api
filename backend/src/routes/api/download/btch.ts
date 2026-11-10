@@ -1,15 +1,27 @@
-import { authMiddleware } from '@middlewares/authMiddleware';
+import { createSdkRoute } from '@routes/api/sdkHandler';
 import { btchDownloaderService } from '@services/btchDownloader.service';
-import type { BtchDownloadPlatform } from '@services/btchDownloader.service';
-import { assertReadMethod, jsonResponse, readRequestParam } from '@utils/request.util';
 
-export function createBtchDownloadRoute(platform: BtchDownloadPlatform) {
-  return async (req: Request, url: URL): Promise<Response> => {
-    assertReadMethod(req);
-    authMiddleware(req);
+export const downloadSpotifyRoute = createSdkRoute(
+  ['url', 'link', 'URL'],
+  value => btchDownloaderService.download('spotify', value)
+);
 
-    const mediaUrl = await readRequestParam(req, url, ['url', 'link', 'URL']);
-    const result = await btchDownloaderService.download(platform, mediaUrl);
-    return jsonResponse(result);
-  };
-}
+export const downloadThreadsRoute = createSdkRoute(
+  ['url', 'link', 'URL'],
+  value => btchDownloaderService.download('threads', value)
+);
+
+export const downloadGoogleDriveRoute = createSdkRoute(
+  ['url', 'link', 'URL'],
+  value => btchDownloaderService.download('google-drive', value)
+);
+
+export const downloadCapCutRoute = createSdkRoute(
+  ['url', 'link', 'URL'],
+  value => btchDownloaderService.download('capcut', value)
+);
+
+export const downloadTwitterRoute = createSdkRoute(
+  ['url', 'link', 'URL'],
+  value => btchDownloaderService.download('twitter', value)
+);

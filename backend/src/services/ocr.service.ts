@@ -1,6 +1,8 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { DangerError, InvalidParameterError } from '@errors/index';
+import type { IOcrService, OcrResult } from '@interface/IOcr';
+import type { TranscribeLanguage } from '@types/transcribe.type';
 import { getTempDir } from '@utils/temp.util';
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
@@ -19,8 +21,8 @@ function detectImageFormat(data: Buffer): string | undefined {
   return IMAGE_FORMATS.find(format => format.matches(data))?.extension;
 }
 
-class OcrServiceImpl {
-  async recognize(data: Uint8Array, language: 'auto' | 'pt' | 'en'): Promise<{ text: string; language: string }> {
+class OcrServiceImpl implements IOcrService {
+  async recognize(data: Uint8Array, language: TranscribeLanguage): Promise<OcrResult> {
     if (data.byteLength === 0) {
       throw new InvalidParameterError('A imagem enviada está vazia.');
     }

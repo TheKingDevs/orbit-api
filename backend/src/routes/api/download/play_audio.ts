@@ -1,25 +1,7 @@
 import { DownloaderService } from '@services/downloader.service';
 import { authMiddleware } from '@middlewares/authMiddleware';
-import { devWorldBRService } from '@services/devworldbr.service';
 
 const downloaderService = new DownloaderService();
-
-function extractFirstVideoUrl(response: unknown): string | undefined {
-  const data: any = response;
-
-  const list = Array.isArray(data?.data) ? data.data : Array.isArray(data?.videos) ? data.videos : undefined;
-  if (!list || list.length === 0) return undefined;
-
-  const nonLive = list.find((v: any) => v && typeof v === 'object' && v.tipo !== 'live');
-  const target = nonLive || list[0];
-
-  if (typeof target === 'string') return target;
-  if (target && typeof target === 'object') {
-    return target.link ?? target.url ?? target.linkVideo ?? target.videoUrl;
-  }
-
-  return undefined;
-}
 
 export async function downloadPlayAudioRoute(req: Request, url: URL): Promise<Response> {
   authMiddleware(req);
@@ -30,15 +12,8 @@ export async function downloadPlayAudioRoute(req: Request, url: URL): Promise<Re
     throw new Error('Informe o nome da música.');
   }
 
-  const search = await devWorldBRService.ytSearch(name.trim());
-  const targetUrl = extractFirstVideoUrl(search);
-
-  if (!targetUrl) {
-    throw new Error('Não foi possível encontrar a música no YouTube para o nome informado.');
-  }
-
   const result = await downloaderService.processDownload(
-    { url: targetUrl, type: 'audio' },
+    { name: name.trim().slice(0, 500), platform: 'youtube', type: 'audio' },
     { baseUrl: process.env.PUBLIC_BASE_URL || url.origin }
   );
 

@@ -15,9 +15,11 @@ O backend tem configuração e instruções próprias em [`../backend/README.md`
 Na pasta `frontend`, instale as dependências e crie o arquivo de ambiente:
 
 ```bash
-npm ci
+npm install
 cp .env.example .env
 ```
+
+O `package-lock.json` não é versionado neste repositório; use `npm install` para gerar o lockfile localmente.
 
 Configure `BACKEND_URL` para apontar ao backend em execução. Em seguida, inicie o frontend:
 
@@ -38,6 +40,7 @@ As variáveis abaixo estão listadas em [`.env.example`](.env.example):
 | `NEXT_PUBLIC_SITE_URL` | URL pública canônica do site, usada em metadados, sitemap e robots. |
 | `NEXT_PUBLIC_API_URL` | URL pública usada nos exemplos de requisição da documentação. Se vazia, os exemplos usam a origem atual do navegador. Também serve como fallback para URL do site nos metadados. |
 | `NEXT_PUBLIC_WHATSAPP_CHANNEL_URL` | Link opcional para o canal de atualizações exibido no dashboard. |
+| `NEXT_PUBLIC_WHATSAPP_SUPPORT_URL` | Link opcional de convite para o grupo de suporte exibido na página de suporte. |
 
 `NEXT_PUBLIC_*` é incorporado pelo Next.js durante a build. Configure esses valores no ambiente de build e reconstrua o frontend após alterá-los. `BACKEND_URL` é usado pelo servidor Next.js; não o exponha como uma variável pública no navegador.
 
@@ -123,6 +126,6 @@ npm run start    # Servidor de produção em http://localhost:3001
 
 ## Build e publicação
 
-Defina as variáveis de ambiente no serviço de hospedagem e execute `npm ci` e `npm run build`. Em produção, mantenha `BACKEND_URL` acessível pelo processo Next.js e aponte `NEXT_PUBLIC_SITE_URL` e, se necessário, `NEXT_PUBLIC_API_URL` para os domínios públicos corretos.
+Defina as variáveis de ambiente no serviço de hospedagem e execute `npm install` e `npm run build`. Em produção, mantenha `BACKEND_URL` acessível pelo processo Next.js e aponte `NEXT_PUBLIC_SITE_URL` e, se necessário, `NEXT_PUBLIC_API_URL` para os domínios públicos corretos.
 
 O frontend usa rewrites do Next.js para o backend e configura um `proxyTimeout` de até 30 minutos, necessário para requisições demoradas, como geração de imagens. A plataforma de hospedagem ainda precisa permitir esse tempo de conexão; o timeout do Next.js não substitui limites impostos pelo provedor.

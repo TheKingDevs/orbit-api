@@ -1,0 +1,11 @@
+# Ajuste os times abaixo para os handles reais da organização antes de
+# exigir revisão de code owner na proteção de branch.
+*                       @TheKingDevs/admins
+/backend/               @TheKingDevs/time-back
+/frontend/              @TheKingDevs/time-front
+/.github/               @TheKingDevs/admins
+/scripts/               @TheKingDevs/admins
+/README.md              @TheKingDevs/admins
+/CONTRIBUTING.md        @TheKingDevs/admins
+/COMO_COLABORAR.md      @TheKingDevs/admins
+/LICENSE                @TheKingDevs/admins

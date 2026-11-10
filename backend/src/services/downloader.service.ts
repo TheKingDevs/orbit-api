@@ -4,7 +4,7 @@ import { WarningError, DangerError } from '@errors/index';
 import { Logger } from '@utils/logger';
 import { MediaType, StoredMedia, storageService } from '@services/storage.service';
 import { validateSafeUrl, TrustedPlatform } from '@utils/urlSecurity.util';
-import { isYtDlpSearchQuery, ytDlpRuntimeArgs } from '@utils/ytDlp.util';
+import { devWorldBRService } from '@services/devworldbr.service';
 
 interface MediaMetadata {
   title?: string;
@@ -24,44 +24,46 @@ class BaseDownloaderService implements IDownloaderService {
   async processDownload(dto: DownloadRequestDTO, context?: DownloadContext): Promise<DownloadResponseDTO> {
     try {
       const baseUrl = (context?.baseUrl || process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-      const { url, platform, type } = dto;
+      const { url, name, platform, type } = dto;
 
-      const searchQuery = Boolean(url && platform === 'youtube' && isYtDlpSearchQuery(url));
-      if (url && !searchQuery) {
-        validateSafeUrl(url, { platform: platform as TrustedPlatform, fieldName: 'url' });
-      }
+      if (url) validateSafeUrl(url, { platform: platform as TrustedPlatform, fieldName: 'url' });
 
       let stored: StoredMedia;
       let metadata: MediaMetadata;
 
       if (type === 'video' || type === 'audio') {
+        if (platform === 'youtube' && name?.trim()) {
+          const search: any = await devWorldBRService.ytSearch(name.trim().slice(0, 500));
+          const entries = Array.isArray(search.data) ? search.data : Array.isArray(search.results) ? search.results : [];
+          const item = entries.find((entry: any) => entry?.tipo !== 'live' && (entry?.link || entry?.url));
+          const videoUrl = item?.link || item?.url;
+          if (!videoUrl) throw new WarningError('Não foi possível encontrar o vídeo para o nome informado.', 404);
+
+          const mediaType: MediaType = type === 'audio' ? 'audio' : 'video';
+          const sourceUrl = devWorldBRService.youtubeMediaSource(videoUrl, mediaType);
+          const downloaded = await this.saveYouTubeMedia(sourceUrl, mediaType, mediaType === 'audio' ? 'mp3' : 'mp4');
+          const title = item?.titulo || item?.title || name.trim();
+          const thumbnail = item?.imagen || item?.thumbnail;
+          const author = item?.autor?.nome || item?.canal || item?.author || 'YouTube';
+          const duration = this.parseDuration(item?.duracao) || Number(item?.segundos) || 0;
+
+          return {
+            success: true,
+            message: this.successMessage(mediaType),
+            mediaType,
+            downloadUrl: `${baseUrl}/storage/${downloaded.filename}`,
+            thumbnail,
+            metadata: { title, duration, author, thumbnail }
+          };
+        }
+
         if (platform === 'tiktok') {
-          try {
-            const downloaded = await storageService.saveWithYtDlp(url || '', type);
-            stored = downloaded.media;
-            metadata = {
-              title: downloaded.title || 'TikTok Media',
-              duration: downloaded.duration || 0,
-              author: downloaded.author || 'TikTok',
-              thumbnail: downloaded.thumbnail
-            };
-          } catch (ytDlpError) {
-            Logger.warning(`Download via yt-dlp falhou (${ytDlpError instanceof Error ? ytDlpError.message : String(ytDlpError)}); tentando TikWM.`, 'TikTokDownloader');
-            const tikwmMedia = await this.resolveTikTokMedia(url || '', type);
-            if (!tikwmMedia) throw ytDlpError;
-            try {
-              stored = await storageService.saveFromUrl(
-                tikwmMedia.directUrl,
-                tikwmMedia.mediaType,
-                tikwmMedia.suggestedExt,
-                { Referer: 'https://www.tikwm.com/', Origin: 'https://www.tikwm.com' }
-              );
-              metadata = tikwmMedia.metadata;
-            } catch (tikwmError) {
-              Logger.warning(`Download via TikWM falhou (${tikwmError instanceof Error ? tikwmError.message : String(tikwmError)}).`, 'TikTokDownloader');
-              throw new WarningError('Não foi possível baixar este vídeo do TikTok agora. Tente novamente mais tarde ou use outro link público.', 502);
-            }
-          }
+          const tikwmMedia = await this.resolveTikTokMedia(url || '', type);
+          if (!tikwmMedia) throw new WarningError('Não foi possível baixar este vídeo do TikTok agora. Tente novamente mais tarde ou use outro link público.', 502);
+          stored = await storageService.saveFromUrl(tikwmMedia.directUrl, tikwmMedia.mediaType, tikwmMedia.suggestedExt, {
+            Referer: 'https://www.tikwm.com/', Origin: 'https://www.tikwm.com'
+          });
+          metadata = tikwmMedia.metadata;
 
           return {
             success: true,
@@ -81,38 +83,15 @@ class BaseDownloaderService implements IDownloaderService {
         const pinterestMedia = platform === 'pinterest'
           ? await this.resolvePinterestMedia(url, type)
           : undefined;
-        let resolved: ResolvedMedia;
-        try {
-          resolved = pinterestMedia ?? await this.resolveWithYtDlp(url, type, platform);
-        } catch (resolutionError) {
-          const errorMessage = resolutionError instanceof Error ? resolutionError.message : String(resolutionError);
-          const youtubeUrl = Boolean(url && /(?:youtube\.com|youtu\.be)/i.test(url));
-          if (type !== 'video' || !(platform === 'youtube' || youtubeUrl) || !/requested format is not available/i.test(errorMessage)) {
-            throw resolutionError;
-          }
-
-          const downloaded = await storageService.saveWithYtDlp(url, 'video');
-          const metadata = {
-            title: downloaded.title || 'YouTube Video',
-            duration: downloaded.duration || 0,
-            author: downloaded.author || 'YouTube',
-            thumbnail: downloaded.thumbnail
-          };
-          return {
-            success: true,
-            message: this.successMessage('video'),
-            mediaType: 'video',
-            downloadUrl: `${baseUrl}/storage/${downloaded.media.filename}`,
-            thumbnail: metadata.thumbnail,
-            metadata
-          };
-        }
-        const reference = await storageService.registerRemote(resolved.directUrl, resolved.mediaType, resolved.suggestedExt);
+        const resolved = pinterestMedia ?? await this.resolveWithDevWorld(url || '', type, platform);
+        const storedMedia = platform === 'youtube'
+          ? await this.saveYouTubeMedia(resolved.directUrl, resolved.mediaType, resolved.suggestedExt || (resolved.mediaType === 'audio' ? 'mp3' : 'mp4'))
+          : await storageService.registerRemote(resolved.directUrl, resolved.mediaType, resolved.suggestedExt);
         return {
           success: true,
           message: this.successMessage(resolved.mediaType),
           mediaType: resolved.mediaType,
-          downloadUrl: `${baseUrl}/storage/${reference.filename}`,
+          downloadUrl: `${baseUrl}/storage/${storedMedia.filename}`,
           thumbnail: resolved.metadata.thumbnail,
           metadata: {
             title: resolved.metadata.title || `${platform} Media`,
@@ -123,8 +102,8 @@ class BaseDownloaderService implements IDownloaderService {
         };
       } else {
         const resolved = platform === 'pinterest'
-          ? (await this.resolvePinterestMedia(url, type)) || (await this.resolveWithYtDlp(url, type, platform))
-          : await this.resolveWithYtDlp(url, type, platform);
+          ? (await this.resolvePinterestMedia(url || '', type)) || (await this.resolveWithDevWorld(url || '', type, platform))
+          : await this.resolveWithDevWorld(url || '', type, platform);
 
         stored = await storageService.saveFromUrl(resolved.directUrl, resolved.mediaType, resolved.suggestedExt);
         metadata = resolved.metadata;
@@ -159,7 +138,7 @@ class BaseDownloaderService implements IDownloaderService {
 
       validateSafeUrl(url, { platform: platform as TrustedPlatform, fieldName: 'url' });
 
-      const resolved = await this.resolveWithYtDlp(url, type, platform);
+      const resolved = await this.resolveWithDevWorld(url, type, platform);
 
       return {
         directUrl: resolved.directUrl,
@@ -178,6 +157,13 @@ class BaseDownloaderService implements IDownloaderService {
     if (mediaType === 'audio') return 'link do áudio pronto para baixar!';
     if (mediaType === 'gif') return 'gif baixado com sucesso!';
     return 'imagem baixada com sucesso!';
+  }
+
+  private parseDuration(value: unknown): number {
+    if (typeof value === 'number') return value;
+    if (typeof value !== 'string') return 0;
+    const parts = value.split(':').map(Number);
+    return parts.every(Number.isFinite) ? parts.reduce((total, part) => total * 60 + part, 0) : 0;
   }
 
   private async resolvePinterestMedia(url: string, type: string): Promise<ResolvedMedia | undefined> {
@@ -236,7 +222,7 @@ class BaseDownloaderService implements IDownloaderService {
         metadata: { title: 'Pinterest Media', duration: 0, author: 'Pinterest' }
       };
     } catch (err: any) {
-      Logger.warning(`Scraper do Pinterest falhou (${err.message}), tentando fallback yt-dlp.`, 'PinterestDownloader');
+      Logger.warning('Scraper do Pinterest falhou.', 'PinterestDownloader');
       return undefined;
     }
   }
@@ -295,107 +281,65 @@ class BaseDownloaderService implements IDownloaderService {
     return undefined;
   }
 
-  private async resolveWithYtDlp(url: string, type: string, platform: string): Promise<ResolvedMedia> {
-    const isSearch = isYtDlpSearchQuery(url);
-    const args = [
-      'yt-dlp', ...ytDlpRuntimeArgs(), '--skip-download', '--no-warnings', ...(isSearch ? ['--ignore-errors', '--playlist-end', '5'] : ['--no-playlist']), '--no-check-formats',
-      '--socket-timeout', '20', '--output-na-placeholder', 'null', '--print',
-      '{"url":%(url)j,"title":%(title)j,"duration":%(duration)j,"uploader":%(uploader)j,"thumbnail":%(thumbnail)j,"ext":%(ext)j}'
-    ];
-
-    if (type === 'audio') {
-      args.push('-f', 'bestaudio/best');
-    } else if (type === 'video') {
-      const videoFormat = platform === 'youtube'
-        ? 'b[height<=1080][acodec!=none][vcodec!=none]/b[acodec!=none][vcodec!=none]'
-        : 'best';
-      args.push('-f', videoFormat);
-    }
-
-    args.push(url);
-
-    const proc = Bun.spawn(args, { stdout: 'pipe', stderr: 'pipe' });
-    let timedOut = false;
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      proc.kill();
-    }, 45_000);
-    timeout.unref?.();
-    const [output, errorOutput] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text()
-    ]);
-    const exitCode = await proc.exited;
-    clearTimeout(timeout);
-
-    if (timedOut) {
-      throw new WarningError('A plataforma de origem demorou para responder. Tente novamente em instantes.', 504);
-    }
-
-    if (exitCode !== 0 && !output) {
-      if (platform === 'tiktok' || url.includes('tiktok.com')) {
-        const fallback = await this.resolveTikTokMedia(url, type);
-        if (fallback) return fallback;
-      }
-      throw new WarningError(errorOutput || 'Não foi possível extrair a mídia do link informado.', 502);
-    }
-
-    let info: Record<string, unknown>;
+  private async fetchYouTubeMetadata(url: string): Promise<MediaMetadata> {
     try {
-      info = JSON.parse(output.trim().split('\n').filter(Boolean)[0] || '{}');
+      const response = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`, {
+        signal: AbortSignal.timeout(10_000)
+      });
+      if (!response.ok) return {};
+      const data = await response.json() as any;
+      return {
+        title: typeof data.title === 'string' ? data.title : undefined,
+        author: typeof data.author_name === 'string' ? data.author_name : 'YouTube',
+        thumbnail: typeof data.thumbnail_url === 'string' ? data.thumbnail_url : undefined
+      };
     } catch {
-      throw new WarningError('A plataforma não retornou os dados da mídia em um formato válido.', 502);
+      return {};
     }
-    const directUrl = typeof info.url === 'string' ? info.url : undefined;
-
-    if (!directUrl) {
-      throw new WarningError('Não foi possível obter a URL de mídia.', 502);
-    }
-
-    let thumb = typeof info.thumbnail === 'string' ? info.thumbnail : undefined;
-    if (!thumb && (platform === 'youtube' || url.includes('youtu'))) {
-      const ytMatch = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([\w-]{11})/i);
-      if (ytMatch) thumb = `https://i.ytimg.com/vi/${ytMatch[1]}/hqdefault.jpg`;
-    }
-
-    const ext = String(info.ext || '').toLowerCase();
-    const title = typeof info.title === 'string' ? info.title : `${platform} Media`;
-    const author = typeof info.uploader === 'string'
-      ? info.uploader
-      : typeof info.channel === 'string'
-        ? info.channel
-        : platform;
-    const duration = typeof info.duration === 'number' ? info.duration : 0;
-    let mediaType: MediaType;
-
-    if (type === 'gif' || ext === 'gif') {
-      mediaType = 'gif';
-    } else if (type === 'image') {
-      mediaType = 'image';
-    } else if (type === 'video') {
-      mediaType = 'video';
-    } else if (type === 'audio') {
-      mediaType = 'audio';
-    } else if (['mp4', 'webm', 'mkv', 'mov'].includes(ext)) {
-      mediaType = 'video';
-    } else if (['mp3', 'm4a', 'opus', 'ogg', 'oga'].includes(ext)) {
-      mediaType = 'audio';
-    } else {
-      mediaType = 'image';
-    }
-
-    return {
-      mediaType,
-      directUrl,
-      suggestedExt: ext || undefined,
-      metadata: {
-        title,
-        duration,
-        author,
-        thumbnail: thumb
-      }
-    };
   }
+
+  private async saveYouTubeMedia(sourceUrl: string, mediaType: MediaType, suggestedExt: string): Promise<StoredMedia> {
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await storageService.saveFromUrl(sourceUrl, mediaType, suggestedExt, {}, 300_000);
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 750 * (attempt + 1)));
+      }
+    }
+
+    Logger.warning(`Falha ao baixar mídia do YouTube após 3 tentativas: ${lastError instanceof Error ? lastError.message : String(lastError)}`, 'YouTubeDownloader');
+    throw new WarningError('Não foi possível baixar a mídia do YouTube. Tente novamente em instantes.', 502);
+  }
+
+  private async resolveWithDevWorld(url: string, type: string, platform: string): Promise<ResolvedMedia> {
+    if (platform === 'youtube') {
+      const mediaType: MediaType = type === 'audio' ? 'audio' : 'video';
+      const directUrl = devWorldBRService.youtubeMediaSource(url, mediaType);
+      const metadata = await this.fetchYouTubeMetadata(url);
+      return { mediaType, directUrl, suggestedExt: mediaType === 'audio' ? 'mp3' : 'mp4', metadata };
+    }
+    if (platform === 'instagram') {
+      const response: any = await devWorldBRService.instagram(url);
+      const seen = new Set<object>();
+      const find = (value: any, depth = 0): string | undefined => {
+        if (!value || typeof value !== 'object' || depth > 6 || seen.has(value)) return;
+        seen.add(value);
+        if (Array.isArray(value)) { for (const x of value) { const found = find(x, depth + 1); if (found) return found; } return; }
+        for (const [key, x] of Object.entries(value)) {
+          if (typeof x === 'string' && /^https:\/\//i.test(x) && ((type === 'video' && (/video|download/i.test(key) || /\.mp4(?:[?#]|$)/i.test(x))) || (type !== 'video' && (/image|photo|download/i.test(key) || /\.(?:jpe?g|png|webp)(?:[?#]|$)/i.test(x))))) return x;
+          const found = find(x, depth + 1); if (found) return found;
+        }
+      };
+      const directUrl = find(response);
+      if (!directUrl) throw new WarningError('Não foi possível obter a mídia do Instagram.', 502);
+      return { mediaType: type === 'video' ? 'video' : 'image', directUrl, suggestedExt: type === 'video' ? 'mp4' : undefined, metadata: { title: 'Instagram Media', author: 'Instagram' } };
+    }
+    throw new WarningError('Esta mídia não está disponível pelo serviço de download.', 502);
+  }
+
 }
 
 export class DownloaderService implements IDownloaderService {

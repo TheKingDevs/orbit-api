@@ -1,0 +1,59 @@
+name: Sugestão
+description: Proponha uma melhoria ou nova funcionalidade para a Orbit API.
+title: "[feat]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Descreva a proposta com foco no problema e no impacto. Mudanças grandes devem ser alinhadas com os maintainers antes da implementação.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema
+      description: Qual problema ou necessidade esta sugestão resolve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Solução proposta
+      description: Descreva a solução desejada e o comportamento esperado.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+      description: Existe outra forma de resolver o problema?
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Escopo estimado
+      options:
+        - Backend
+        - Frontend
+        - Ambos
+        - Infraestrutura / deploy
+        - Documentação
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Contexto adicional
+      description: Links, capturas, exemplos de API ou observações relevantes.
+
+  - type: checkboxes
+    id: agreement
+    attributes:
+      label: Confirmação
+      options:
+        - label: Li o guia de colaboração e entendo que mudanças grandes precisam de alinhamento prévio.
+          required: true

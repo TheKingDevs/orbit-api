@@ -1,6 +1,7 @@
 import { DangerError, InvalidParameterError } from '@errors/index';
+import type { ISummarizationService } from '@interface/ISummarization';
 import { devWorldBRService } from '@services/devworldbr.service';
-import type { SummarizeDTO } from '@types/ai.type';
+import type { SummarizeOptions } from '@types/ai.type';
 
 const MAX_SOURCE_CHARS = 10_000;
 const MAX_UPSTREAM_QUERY_CHARS = 6_000;
@@ -30,7 +31,7 @@ function extractText(value: unknown): string | undefined {
 
 function buildPrompt(
   text: string,
-  options: Pick<SummarizeDTO, 'language' | 'style' | 'length'>,
+  options: SummarizeOptions,
   sourceLanguage?: string,
   intermediate = false
 ): string {
@@ -71,7 +72,7 @@ function encodedQueryLength(prompt: string): number {
 
 function splitForProvider(
   text: string,
-  options: Pick<SummarizeDTO, 'language' | 'style' | 'length'>,
+  options: SummarizeOptions,
   sourceLanguage?: string
 ): string[] {
   const characters = Array.from(text);
@@ -120,10 +121,10 @@ async function ask(prompt: string): Promise<string> {
   return text;
 }
 
-class SummarizationServiceImpl {
+class SummarizationServiceImpl implements ISummarizationService {
   async summarize(
     text: string,
-    options: Pick<SummarizeDTO, 'language' | 'style' | 'length'>,
+    options: SummarizeOptions,
     sourceLanguage?: string
   ): Promise<string> {
     if (text.length > MAX_SOURCE_CHARS) {

@@ -2,7 +2,7 @@ import { DangerError } from '@errors/index';
 import { authMiddleware } from '@middlewares/authMiddleware';
 import { TranscriptionService } from '@services/transcription.service';
 import { SummarizationService } from '@services/summarization.service';
-import { readAudioUpload } from '@routes/api/transcribe';
+import { readAudioUpload } from '@utils/audioUpload.util';
 import { ValidatorUtil } from '@utils/validator.util';
 import { jsonResponse } from '@utils/request.util';
 
