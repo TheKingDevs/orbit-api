@@ -31,7 +31,8 @@ function frontendReturnUrl(orderId: string, result: 'success' | 'pending' | 'fai
   const origin = process.env.FRONTEND_URL?.trim();
   if (!origin) return undefined;
   try {
-    const url = new URL('/app/planos', origin);
+    const returnPath = result === 'success' ? '/app' : '/app/planos';
+    const url = new URL(returnPath, origin);
     if (url.protocol !== 'https:' && url.hostname !== 'localhost') return undefined;
     url.searchParams.set('billing', result);
     url.searchParams.set('order_id', orderId);
