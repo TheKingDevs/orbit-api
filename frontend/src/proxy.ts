@@ -7,6 +7,16 @@ const PUBLIC_ROUTES = ["/", "/login", "/404", "/erro"];
 export function proxy(req: NextRequest) {
   const hasSession = req.cookies.has(SESSION_COOKIE);
   const pathname = req.nextUrl.pathname;
+
+  // Checkout uses the same-origin Next.js rewrite. The backend still enforces
+  // the session and CSRF token; remove the browser Origin so deployment aliases
+  // and Vercel preview hosts do not have to be copied into the backend CORS list.
+  if (pathname === "/api/user/billing/checkout") {
+    const headers = new Headers(req.headers);
+    headers.delete("origin");
+    return NextResponse.next({ request: { headers } });
+  }
+
   const isPublic = PUBLIC_ROUTES.some(route =>
     route === "/" ? pathname === "/" : pathname === route || pathname.startsWith(`${route}/`)
   );
@@ -19,5 +29,5 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next|api|favicon.ico|.*\\..*).*)"]
+  matcher: ["/api/user/billing/checkout", "/((?!_next|api|favicon.ico|.*\\..*).*)"]
 };
