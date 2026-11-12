@@ -3,8 +3,10 @@ import { CSRF_COOKIE } from "@constants";
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
  type UnauthorizedHandler = () => void;
+type SuspensionHandler = (error: ApiError) => void;
 
 let unauthorizedHandler: UnauthorizedHandler | null = null;
+let suspensionHandler: SuspensionHandler | null = null;
 
 export class ApiError extends Error {
   public readonly status: number;
@@ -20,6 +22,10 @@ export class ApiError extends Error {
 
 export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
   unauthorizedHandler = handler;
+}
+
+export function setSuspensionHandler(handler: SuspensionHandler | null): void {
+  suspensionHandler = handler;
 }
 
 function readCookie(name: string): string | null {
@@ -80,11 +86,13 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const payload = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new ApiError(
+    const error = new ApiError(
       payload?.message ?? "Falha na requisição.",
       response.status,
       payload?.errorType
     );
+    if (path !== "/api/auth/session" && (error.code === "AccountSuspended" || error.code === "PermanentSuspension")) suspensionHandler?.(error);
+    throw error;
   }
 
   return payload as T;

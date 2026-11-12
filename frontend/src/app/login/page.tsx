@@ -14,7 +14,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   token_exchange_failed: "Não foi possível validar o login com o Google.",
   invalid_id_token: "A resposta do Google não pôde ser validada.",
   email_not_verified: "Sua conta Google precisa ter um e-mail verificado.",
-  auth_failed: "Não foi possível concluir o login. Tente novamente."
+  auth_failed: "Não foi possível concluir o login. Tente novamente.",
+  account_suspended: "Esta conta está suspensa permanentemente. Acesse a página inicial para consultar o motivo e falar com o suporte."
 };
 
 function LoginContent() {

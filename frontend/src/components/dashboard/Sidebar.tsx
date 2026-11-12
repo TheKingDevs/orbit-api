@@ -281,8 +281,18 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               aria-expanded={accountOpen}
               className="flex w-full items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-2 text-left transition hover:border-violet-400/20 hover:bg-violet-400/[0.06]"
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-violet-400/20 bg-violet-400/15 text-sm font-semibold text-violet-200">
+              <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-violet-400/20 bg-violet-400/15 text-sm font-semibold text-violet-200">
                 {initial}
+                {user?.picture ? (
+                  <img
+                    src={user.picture}
+                    alt=""
+                    aria-hidden="true"
+                    referrerPolicy="no-referrer"
+                    onError={(event) => { event.currentTarget.style.display = 'none'; }}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                ) : null}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold text-white">{displayName}</span>

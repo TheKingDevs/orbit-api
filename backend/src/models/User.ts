@@ -10,10 +10,16 @@ export interface User {
   role: UserRole;
   dailyRequests: number;
   lastResetDate: string;
+  monthlyRequests: number;
+  lastMonthlyResetMonth: string;
+  planExpiresAt?: string;
+  lastBillingOrderId?: string;
   name?: string;
   picture?: string;
   googleSubjectHash?: string;
   isSuspended?: boolean;
+  suspensionType?: 'temporary' | 'permanent';
+  suspendedUntil?: string;
   suspensionReason?: string;
   violationCount?: number;
   docsPreviewDate?: string;

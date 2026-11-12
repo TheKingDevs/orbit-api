@@ -5,6 +5,7 @@ import { CanvasDTO } from '@types/canvas.type';
 import { StickerEffect } from '@types/sticker.type';
 import { FontUtil } from '@utils/font.util';
 import { Logger } from '@utils/logger';
+import { fetchSafeUrl } from '@utils/urlSecurity.util';
 
 type FontWeight = 'normal' | 'bold';
 
@@ -130,7 +131,7 @@ export class CanvasService implements ICanvasService {
   }
 
   private static async loadRemoteImage(url: string) {
-    const response = await fetch(url, {
+    const response = await fetchSafeUrl(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; OrbitAPI/2.0)' },
       signal: AbortSignal.timeout(8_000)
     });

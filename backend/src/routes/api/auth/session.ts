@@ -1,4 +1,4 @@
-import { db } from '@utils/db.util';
+import { BASIC_MONTHLY_LIMIT, db, FREE_DAILY_LIMIT } from '@utils/db.util';
 import {
   CSRF_COOKIE,
   SESSION_COOKIE,
@@ -81,7 +81,7 @@ export async function authSessionRoute(req: Request): Promise<Response> {
 
   const user = db.findById(authenticated.record.userId);
 
-  if (!user || user.isSuspended) {
+  if (!user) {
     sessionManager.destroy(sessionId);
 
     return noStore(withCookies(
@@ -89,6 +89,21 @@ export async function authSessionRoute(req: Request): Promise<Response> {
       clearedCookies(req)
     ));
   }
+
+  db.refreshUserSuspension(user);
+  if (user.isSuspended && user.suspensionType !== 'temporary') {
+    sessionManager.destroy(sessionId);
+    return noStore(withCookies(
+      Response.json({
+        success: false,
+        errorType: 'PermanentSuspension',
+        message: user.suspensionReason?.slice(0, 500) || 'Esta conta foi suspensa permanentemente.'
+      }, { status: 403 }),
+      clearedCookies(req)
+    ));
+  }
+
+  db.refreshUserPlan(user);
 
   const responseCookies: string[] = [];
 
@@ -104,13 +119,22 @@ export async function authSessionRoute(req: Request): Promise<Response> {
     Response.json({
       success: true,
       user: {
+        id: user.id,
         email: user.email,
         name: user.name ?? null,
         picture: user.picture ?? null,
         plan: user.plan,
         role: user.role,
         dailyRequests: user.dailyRequests,
-        limit: user.plan === 'free' ? 100 : null
+        monthlyRequests: user.monthlyRequests,
+        requestsUsed: user.plan === 'free' ? user.dailyRequests : user.monthlyRequests,
+        limit: user.plan === 'free' ? FREE_DAILY_LIMIT : user.plan === 'basic' ? BASIC_MONTHLY_LIMIT : null,
+        limitPeriod: user.plan === 'free' ? 'day' : 'month',
+        planExpiresAt: user.planExpiresAt ?? null,
+        isSuspended: Boolean(user.isSuspended),
+        suspensionType: user.isSuspended ? 'temporary' : null,
+        suspensionReason: user.isSuspended ? user.suspensionReason ?? '' : '',
+        suspendedUntil: user.isSuspended ? user.suspendedUntil ?? null : null
       }
     }),
     responseCookies

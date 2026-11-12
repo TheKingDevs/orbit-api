@@ -42,11 +42,11 @@ export interface ApiDoc {
 }
 
 const APIKEY_PARAM: DocParam = {
-  name: "apikey",
-  type: "text",
+  name: "x-apikey",
+  type: "header",
   required: true,
   description:
-    "Sua chave de API para consumir os recursos. Envie no header x-apikey ou como parâmetro apikey na URL."
+    "Sua chave de API para consumir os recursos. Envie no header x-apikey ou x-api-key; não coloque a chave na URL."
 };
 
 const TOKEN_PARAM: DocParam = APIKEY_PARAM;

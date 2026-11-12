@@ -2,10 +2,11 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Collection } from 'mongodb';
 import { User } from '@models/User';
 import { IUserService } from '@interface/IUser';
-import { UnauthorizedError, ForbiddenError, RateLimitError } from '@errors/index';
+import { AccountSuspendedError, UnauthorizedError, ForbiddenError, RateLimitError } from '@errors/index';
 import { Logger } from '@utils/logger';
 import { sessionManager } from '@services/session.service';
 import { getDatabase } from '@services/mongo.service';
+import { addOneCalendarMonth } from '@utils/plan.util';
 import {
   decryptSensitive,
   encryptSensitive,
@@ -27,6 +28,8 @@ const MAX_RATE_LIMIT_TRACKERS = 50_000;
 const RATE_LIMIT_TRACKER_TTL_MS = 60 * 60 * 1000;
 const RATE_LIMIT_CLEANUP_INTERVAL_MS = 60 * 1000;
 const LEGACY_AUTOBAN_REASON = 'Banido permanentemente por 3 tentativas de ataques DDoS / RateLimit violado.';
+export const FREE_DAILY_LIMIT = 100;
+export const BASIC_MONTHLY_LIMIT = 1500;
 
 interface RequestRecordInput {
   method: string;
@@ -40,11 +43,24 @@ export interface RequestRecord extends RequestRecordInput {
   id: string;
 }
 
+export interface UsagePagination {
+  page: number;
+  limit: number;
+  total: number;
+  hasMore: boolean;
+}
+
 export interface UsageStats {
   daily: Array<{ date: string; count: number }>;
   recent: RequestRecord[];
+  pagination: UsagePagination;
   topEndpoints: Array<{ path: string; count: number }>;
   totalRequests: number;
+}
+
+export interface UsageStatsOptions {
+  page?: number;
+  limit?: number;
 }
 
 interface UserDocument {
@@ -53,6 +69,10 @@ interface UserDocument {
   role: User['role'];
   dailyRequests: number;
   lastResetDate: string;
+  monthlyRequests?: number;
+  lastMonthlyResetMonth?: string;
+  planExpiresAt?: string;
+  lastBillingOrderId?: string;
   violationCount: number;
   apiKeyHash?: string;
   apiKeyEnc?: string;
@@ -64,6 +84,8 @@ interface UserDocument {
   pictureEnc?: string;
   googleSubjectHash?: string;
   isSuspended?: boolean;
+  suspensionType?: 'temporary' | 'permanent';
+  suspendedUntil?: string;
   suspensionReasonEnc?: string;
   docsPreviewDate?: string;
   docsPreviewCount?: number;
@@ -87,11 +109,17 @@ interface PersistedUserFields {
   role: User['role'];
   dailyRequests: number;
   lastResetDate: string;
+  monthlyRequests: number;
+  lastMonthlyResetMonth: string;
+  planExpiresAt?: string;
+  lastBillingOrderId?: string;
   violationCount: number;
   nameEnc?: string;
   pictureEnc?: string;
   googleSubjectHash?: string;
   isSuspended?: boolean;
+  suspensionType?: 'temporary' | 'permanent';
+  suspendedUntil?: string;
   suspensionReasonEnc?: string;
   docsPreviewDate?: string;
   docsPreviewCount?: number;
@@ -132,10 +160,17 @@ function buildMutableFields(user: User): MutableUserFields {
     role: user.role,
     dailyRequests: user.dailyRequests,
     lastResetDate: user.lastResetDate,
+    monthlyRequests: user.monthlyRequests,
+    lastMonthlyResetMonth: user.lastMonthlyResetMonth,
     violationCount: user.violationCount ?? 0
   };
 
+  if (user.planExpiresAt !== undefined) fields.planExpiresAt = user.planExpiresAt;
+  if (user.lastBillingOrderId !== undefined) fields.lastBillingOrderId = user.lastBillingOrderId;
+
   if (user.isSuspended !== undefined) fields.isSuspended = user.isSuspended;
+  if (user.suspensionType !== undefined) fields.suspensionType = user.suspensionType;
+  if (user.suspendedUntil !== undefined) fields.suspendedUntil = user.suspendedUntil;
   if (user.suspensionReason !== undefined) {
     fields.suspensionReasonEnc = encryptSensitive(user.suspensionReason);
   }
@@ -191,6 +226,10 @@ function fromUserDocument(document: UserDocument): User {
     role: document.role,
     dailyRequests: document.dailyRequests,
     lastResetDate: document.lastResetDate,
+    monthlyRequests: document.monthlyRequests ?? 0,
+    lastMonthlyResetMonth: document.lastMonthlyResetMonth ?? new Date().toISOString().slice(0, 7),
+    ...(document.planExpiresAt ? { planExpiresAt: document.planExpiresAt } : {}),
+    ...(document.lastBillingOrderId ? { lastBillingOrderId: document.lastBillingOrderId } : {}),
     violationCount: document.violationCount ?? 0,
     ...(document.nameEnc
       ? { name: decryptSensitive(document.nameEnc) }
@@ -208,6 +247,8 @@ function fromUserDocument(document: UserDocument): User {
         ? { googleSubjectHash: hashSensitive(document.googleSubject) }
         : {}),
     ...(document.isSuspended != null ? { isSuspended: document.isSuspended } : {}),
+    ...(document.suspensionType != null ? { suspensionType: document.suspensionType } : {}),
+    ...(document.suspendedUntil != null ? { suspendedUntil: document.suspendedUntil } : {}),
     ...(document.suspensionReasonEnc
       ? { suspensionReason: decryptSensitive(document.suspensionReasonEnc) }
       : document.suspensionReason != null
@@ -224,6 +265,9 @@ function needsUserMigration(document: UserDocument): boolean {
 
   return (
     hasLegacyField ||
+    document.monthlyRequests === undefined ||
+    document.lastMonthlyResetMonth === undefined ||
+    (!document.planExpiresAt && document.plan !== 'free' && document.role !== 'owner') ||
     !document.apiKeyHash ||
     !document.apiKeyEnc ||
     !document.emailHash ||
@@ -266,6 +310,9 @@ class UserDatabase implements IUserService {
         role: 'owner' as const,
         dailyRequests: 0,
         lastResetDate: this.getTodayDateString(),
+        monthlyRequests: 0,
+        lastMonthlyResetMonth: this.getCurrentMonthString(),
+        planExpiresAt: undefined,
         violationCount: 0
       }] : []),
       {
@@ -277,6 +324,9 @@ class UserDatabase implements IUserService {
         role: 'admin',
         dailyRequests: 0,
         lastResetDate: this.getTodayDateString(),
+        monthlyRequests: 0,
+        lastMonthlyResetMonth: this.getCurrentMonthString(),
+        planExpiresAt: addOneCalendarMonth().toISOString(),
         violationCount: 0
       },
       {
@@ -288,6 +338,8 @@ class UserDatabase implements IUserService {
         role: 'public',
         dailyRequests: 0,
         lastResetDate: this.getTodayDateString(),
+        monthlyRequests: 0,
+        lastMonthlyResetMonth: this.getCurrentMonthString(),
         violationCount: 0
       }
     ];
@@ -331,6 +383,20 @@ class UserDatabase implements IUserService {
 
     for (const document of documents) {
       const user = fromUserDocument(document);
+      if (document.monthlyRequests === undefined) {
+        const monthStart = new Date();
+        monthStart.setUTCDate(1);
+        monthStart.setUTCHours(0, 0, 0, 0);
+        user.monthlyRequests = this.requestCollection
+          ? await this.requestCollection.countDocuments({
+              userId: user.id,
+              timestamp: { $gte: monthStart }
+            })
+          : 0;
+      }
+      if (user.plan !== 'free' && user.role !== 'owner' && !user.planExpiresAt) {
+        user.planExpiresAt = addOneCalendarMonth().toISOString();
+      }
       const wasRateLimitAutoBanned = user.isSuspended && user.suspensionReason === LEGACY_AUTOBAN_REASON;
       if (wasRateLimitAutoBanned) {
         user.isSuspended = false;
@@ -422,8 +488,11 @@ class UserDatabase implements IUserService {
     const key = user.apiKey || user.token;
     user.apiKey = key;
     user.token = key;
-    this.users.set(key, user);
     await this.persistUser(user);
+    for (const [existingKey, existingUser] of this.users) {
+      if (existingUser.id === user.id && existingKey !== key) this.users.delete(existingKey);
+    }
+    this.users.set(key, user);
   }
 
   private async persistUser(user: User, includeSensitive: boolean = true): Promise<void> {
@@ -434,6 +503,10 @@ class UserDatabase implements IUserService {
       ? buildUserFields(user)
       : buildMutableFields(user);
     const unsetFields: Record<string, ''> = { ...LEGACY_USER_FIELDS };
+
+    if (user.planExpiresAt === undefined) unsetFields.planExpiresAt = '';
+    if (user.suspensionType === undefined) unsetFields.suspensionType = '';
+    if (user.suspendedUntil === undefined) unsetFields.suspendedUntil = '';
 
     if (includeSensitive) {
       if (user.name === undefined) unsetFields.nameEnc = '';
@@ -471,6 +544,10 @@ class UserDatabase implements IUserService {
     return new Date().toISOString().split('T')[0];
   }
 
+  private getCurrentMonthString(): string {
+    return new Date().toISOString().slice(0, 7);
+  }
+
   public findByApiKey(apiKey: string): User | undefined {
     return this.users.get(apiKey);
   }
@@ -481,6 +558,89 @@ class UserDatabase implements IUserService {
 
   public findById(id: string): User | undefined {
     return Array.from(this.users.values()).find(u => u.id === id);
+  }
+
+  public refreshDailyRequests(user: User): User {
+    const today = this.getTodayDateString();
+    const month = this.getCurrentMonthString();
+    let changed = false;
+
+    if (user.lastResetDate !== today) {
+      user.dailyRequests = 0;
+      user.lastResetDate = today;
+      changed = true;
+    }
+
+    if (user.monthlyRequests === undefined || user.lastMonthlyResetMonth !== month) {
+      user.monthlyRequests = user.lastMonthlyResetMonth === month ? user.monthlyRequests ?? 0 : 0;
+      user.lastMonthlyResetMonth = month;
+      changed = true;
+    }
+
+    if (changed) {
+      this.scheduleUserSave(user);
+    }
+
+    return user;
+  }
+
+  public refreshUserPlan(user: User): User {
+    this.refreshDailyRequests(user);
+
+    if (
+      user.role !== 'owner' &&
+      user.plan !== 'free' &&
+      user.planExpiresAt &&
+      Date.parse(user.planExpiresAt) <= Date.now()
+    ) {
+      user.plan = 'free';
+      this.scheduleUserSave(user);
+    }
+
+    return user;
+  }
+
+  public refreshUserSuspension(user: User): User {
+    if (user.isSuspended && user.suspensionType === 'temporary') {
+      const expiry = user.suspendedUntil ? Date.parse(user.suspendedUntil) : NaN;
+      // Fail closed for malformed/missing expiry; only a valid elapsed deadline unlocks the account.
+      if (!Number.isFinite(expiry)) {
+        user.suspensionType = 'permanent';
+        user.suspendedUntil = undefined;
+        this.scheduleUserSave(user);
+      } else if (expiry <= Date.now()) {
+        user.isSuspended = false;
+        user.suspensionType = undefined;
+        user.suspendedUntil = undefined;
+        user.suspensionReason = undefined;
+        this.scheduleUserSave(user);
+      }
+    }
+    return user;
+  }
+
+  public async activatePaidPlanFromOrder(userId: string, plan: 'basic' | 'gold', orderId: string): Promise<void> {
+    const user = this.findById(userId);
+    if (!user || user.lastBillingOrderId === orderId) return;
+
+    const now = new Date();
+    const parsedExpiry = user.plan !== 'free' && user.planExpiresAt ? Date.parse(user.planExpiresAt) : NaN;
+    const currentExpiry = Number.isFinite(parsedExpiry) ? new Date(Math.max(now.getTime(), parsedExpiry)) : now;
+    const nextExpiry = addOneCalendarMonth(currentExpiry).toISOString();
+
+    if (this.usersCollection) {
+      const claim = await this.usersCollection.updateOne(
+        { _id: user.id, lastBillingOrderId: { $ne: orderId } },
+        { $set: { lastBillingOrderId: orderId, plan, planExpiresAt: nextExpiry, monthlyRequests: 0, lastMonthlyResetMonth: this.getCurrentMonthString(), updatedAt: now } }
+      );
+      if (claim.modifiedCount !== 1) return;
+    }
+    user.plan = plan;
+    user.planExpiresAt = nextExpiry;
+    user.lastBillingOrderId = orderId;
+    user.monthlyRequests = 0;
+    user.lastMonthlyResetMonth = this.getCurrentMonthString();
+    await this.saveUser(user);
   }
 
   public findByEmail(email: string): User | undefined {
@@ -588,30 +748,46 @@ class UserDatabase implements IUserService {
     });
   }
 
-  public async getUsageStats(userId: string, days: number = 14): Promise<UsageStats> {
+  public async getUsageStats(
+    userId: string,
+    days: number = 14,
+    options: UsageStatsOptions = {}
+  ): Promise<UsageStats> {
     const normalizedDays = Number.isFinite(days) ? Math.floor(days) : 14;
     const safeDays = Math.min(30, Math.max(1, normalizedDays));
+    const requestedPage = options.page ?? 1;
+    const requestedLimit = options.limit ?? 10;
+    const page = Number.isFinite(requestedPage) ? Math.max(1, Math.floor(requestedPage)) : 1;
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(50, Math.max(1, Math.floor(requestedLimit)))
+      : 10;
 
     if (this.requestCollection) {
       try {
-        return await this.getUsageStatsFromMongo(userId, safeDays);
+        return await this.getUsageStatsFromMongo(userId, safeDays, page, limit);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         Logger.error(`Falha ao consultar uso no MongoDB: ${message}`, 'MongoDB');
       }
     }
 
-    return this.getUsageStatsFromMemory(userId, safeDays);
+    return this.getUsageStatsFromMemory(userId, safeDays, page, limit);
   }
 
-  private async getUsageStatsFromMongo(userId: string, safeDays: number): Promise<UsageStats> {
+  private async getUsageStatsFromMongo(
+    userId: string,
+    safeDays: number,
+    page: number,
+    limit: number
+  ): Promise<UsageStats> {
     if (!this.requestCollection) {
-      return this.getUsageStatsFromMemory(userId, safeDays);
+      return this.getUsageStatsFromMemory(userId, safeDays, page, limit);
     }
 
     const since = new Date();
     since.setUTCHours(0, 0, 0, 0);
     since.setUTCDate(since.getUTCDate() - (safeDays - 1));
+    const skip = (page - 1) * limit;
 
     const [dailyRows, recentDocuments, topRows, totalRequests] = await Promise.all([
       this.requestCollection.aggregate<{ _id: string; count: number }>([
@@ -632,7 +808,8 @@ class UserDatabase implements IUserService {
       this.requestCollection
         .find({ userId })
         .sort({ timestamp: -1 })
-        .limit(20)
+        .skip(skip)
+        .limit(limit)
         .toArray(),
       this.requestCollection.aggregate<{ _id: string; count: number }>([
         { $match: { userId } },
@@ -667,12 +844,23 @@ class UserDatabase implements IUserService {
     return {
       daily,
       recent,
+      pagination: {
+        page,
+        limit,
+        total: totalRequests,
+        hasMore: skip + recent.length < totalRequests
+      },
       topEndpoints: topRows.map(row => ({ path: row._id, count: row.count })),
       totalRequests
     };
   }
 
-  private getUsageStatsFromMemory(userId: string, safeDays: number): UsageStats {
+  private getUsageStatsFromMemory(
+    userId: string,
+    safeDays: number,
+    page: number,
+    limit: number
+  ): UsageStats {
     const dailyUsage = this.requestDailyUsage.get(userId) ?? new Map<string, number>();
     const daily: Array<{ date: string; count: number }> = [];
     const cursor = new Date();
@@ -685,9 +873,11 @@ class UserDatabase implements IUserService {
       daily.push({ date: key, count: dailyUsage.get(key) ?? 0 });
     }
 
-    const recent = [...(this.requestHistory.get(userId) ?? [])]
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, 20);
+    const history = [...(this.requestHistory.get(userId) ?? [])]
+      .sort((a, b) => b.timestamp - a.timestamp);
+    const recentTotal = history.length;
+    const skip = (page - 1) * limit;
+    const recent = history.slice(skip, skip + limit);
 
     const topEndpoints = Array.from(
       (this.requestEndpointUsage.get(userId) ?? new Map<string, number>()).entries()
@@ -701,7 +891,18 @@ class UserDatabase implements IUserService {
       0
     );
 
-    return { daily, recent, topEndpoints, totalRequests };
+    return {
+      daily,
+      recent,
+      pagination: {
+        page,
+        limit,
+        total: recentTotal,
+        hasMore: skip + recent.length < recentTotal
+      },
+      topEndpoints,
+      totalRequests
+    };
   }
 
   public generateFingerprint(req: Request): string {
@@ -795,36 +996,40 @@ class UserDatabase implements IUserService {
   }
 
   public validateUserAccess(user: User, limiterKey: string, req: Request, consumeToken: boolean = true): User {
+    this.refreshUserSuspension(user);
     if (user.isSuspended) {
-      throw new ForbiddenError(`Este usuário está suspenso permanentemente. Motivo: ${user.suspensionReason || 'Violação das diretrizes'}`);
+      throw new AccountSuspendedError(`Esta conta está suspensa. Motivo: ${user.suspensionReason || 'Violação das diretrizes'}`, user.suspensionType !== 'temporary');
     }
 
     const fingerprint = this.generateFingerprint(req);
     this.checkRateLimitAndDDoS(user, limiterKey, fingerprint);
 
+    this.refreshUserPlan(user);
+
     if (!consumeToken) {
       return user;
     }
 
-    const today = this.getTodayDateString();
-
-    if (user.lastResetDate !== today) {
-      user.dailyRequests = 0;
-      user.lastResetDate = today;
-    }
-
-    if (user.plan === 'free' && user.dailyRequests >= 100) {
+    if (user.plan === 'free' && user.dailyRequests >= FREE_DAILY_LIMIT) {
       throw new ForbiddenError('Limite diário de 100 requisições do plano Free atingido. Reseta às 00:00.');
     }
 
+    if (user.plan === 'basic' && user.monthlyRequests >= BASIC_MONTHLY_LIMIT) {
+      throw new ForbiddenError('Limite mensal de 1.500 requisições do plano Basic atingido. O limite é renovado no início do próximo mês.');
+    }
+
     user.dailyRequests += 1;
+    user.monthlyRequests += 1;
     this.scheduleUserSave(user);
     return user;
   }
 
   public validatePreviewAccess(user: User, req: Request): User {
+    this.refreshUserPlan(user);
+    this.refreshUserSuspension(user);
+
     if (user.isSuspended) {
-      throw new ForbiddenError(`Este usuário está suspenso permanentemente. Motivo: ${user.suspensionReason || 'Violação das diretrizes'}`);
+      throw new AccountSuspendedError(`Esta conta está suspensa. Motivo: ${user.suspensionReason || 'Violação das diretrizes'}`, user.suspensionType !== 'temporary');
     }
 
     const fingerprint = this.generateFingerprint(req);

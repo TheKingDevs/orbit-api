@@ -12,6 +12,7 @@ const MAX_TRACKER_IDLE_MS = 30 * 60 * 1000;
 const FAILED_API_KEY_WINDOW_MS = 60 * 1000;
 const FAILED_API_KEY_LIMIT = 30;
 const limits = new Map<string, WindowTracker>();
+const clientIps = new WeakMap<Request, string>();
 let lastCleanupAt = 0;
 
 const AUTH_LIMITS = new Map<string, number>([
@@ -20,8 +21,12 @@ const AUTH_LIMITS = new Map<string, number>([
 ]);
 
 function resolveClientIp(req: Request, socketIp?: string): string {
-  const cloudflareIp = req.headers.get('cf-connecting-ip')?.trim();
-  if (cloudflareIp && isIP(cloudflareIp)) return cloudflareIp;
+  // Render routes public traffic through Cloudflare and overwrites this header at its edge.
+  // On other hosts, only trust the socket peer supplied by the server adapter.
+  if (process.env.RENDER === 'true') {
+    const cloudflareIp = req.headers.get('cf-connecting-ip')?.trim();
+    if (cloudflareIp && isIP(cloudflareIp)) return cloudflareIp;
+  }
 
   return socketIp && isIP(socketIp) ? socketIp : 'unknown-client';
 }
@@ -57,13 +62,15 @@ function getTracker(key: string, now: number): WindowTracker {
 
 /** Apply a bounded per-client limit to unauthenticated OAuth entry points. */
 export function enforceAuthRateLimit(req: Request, socketIp?: string): void {
+  const clientIp = resolveClientIp(req, socketIp);
+  clientIps.set(req, clientIp);
   const path = new URL(req.url).pathname;
   const limit = AUTH_LIMITS.get(path);
   if (!limit) return;
 
   const now = Date.now();
   cleanup(now);
-  const key = `${resolveClientIp(req, socketIp)}:${path}`;
+  const key = `${clientIp}:${path}`;
   const tracker = getTracker(key, now);
   tracker.timestamps = tracker.timestamps.filter(timestamp => now - timestamp < WINDOW_MS);
 
@@ -79,7 +86,7 @@ export function enforceAuthRateLimit(req: Request, socketIp?: string): void {
 export function recordFailedApiKeyAttempt(req: Request): void {
   const now = Date.now();
   cleanup(now);
-  const key = `failed-api-key:${resolveClientIp(req)}`;
+  const key = `failed-api-key:${clientIps.get(req) ?? resolveClientIp(req)}`;
   const tracker = getTracker(key, now);
   tracker.timestamps = tracker.timestamps.filter(timestamp => now - timestamp < FAILED_API_KEY_WINDOW_MS);
 

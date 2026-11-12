@@ -174,7 +174,7 @@ function buildExample(
     }
   } else {
     for (const param of doc.params) {
-      if (param.name === "apikey" || param.name === "token" || param.type === "file") continue;
+      if (param.type === "header" || param.name === "apikey" || param.name === "token" || param.type === "file") continue;
 
       const example = doc.example?.[param.name];
       const value = example ?? (param.required ? sampleValue(param) : null);

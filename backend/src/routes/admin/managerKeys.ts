@@ -1,5 +1,5 @@
 import { sessionAuthMiddleware } from '@middlewares/authMiddleware';
-import { db } from '@utils/db.util';
+import { BASIC_MONTHLY_LIMIT, db, FREE_DAILY_LIMIT } from '@utils/db.util';
 
 export async function managerKeysRoute(req: Request): Promise<Response> {
   const adminUser = sessionAuthMiddleware(req, ['admin', 'owner']);
@@ -10,7 +10,15 @@ export async function managerKeysRoute(req: Request): Promise<Response> {
     token: u.apiKey || u.token,
     plan: u.plan,
     dailyRequests: u.dailyRequests,
-    limit: u.plan === 'free' ? 100 : 'Ilimitado',
+    monthlyRequests: u.monthlyRequests,
+    requestsUsed: u.plan === 'free' ? u.dailyRequests : u.monthlyRequests,
+    limit: u.plan === 'free'
+      ? FREE_DAILY_LIMIT
+      : u.plan === 'basic'
+        ? BASIC_MONTHLY_LIMIT
+        : 'Ilimitado',
+    limitPeriod: u.plan === 'free' ? 'day' : 'month',
+    planExpiresAt: u.planExpiresAt ?? null,
     isSuspended: u.isSuspended || false,
     violations: u.violationCount || 0
   }));

@@ -17,6 +17,8 @@ export type IconName =
   | "close"
   | "copy"
   | "download"
+  | "edit"
+  | "ellipsis"
   | "eye"
   | "eyeOff"
   | "gear"
@@ -29,11 +31,13 @@ export type IconName =
   | "mic"
   | "search"
   | "sparkles"
+  | "suspend"
   | "star"
   | "sticker"
   | "support"
   | "text"
   | "tools"
+  | "trash"
   | "user"
   | "whatsapp"
   | "youtube"
@@ -99,6 +103,19 @@ const ICONS: Record<CustomIconName, ReactNode> = {
       <path d="M12 3v12" />
       <path d="m7 10 5 5 5-5" />
       <path d="M5 21h14" />
+    </>
+  ),
+  edit: (
+    <>
+      <path d="m14 5 5 5" />
+      <path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" />
+    </>
+  ),
+  ellipsis: (
+    <>
+      <circle cx="5" cy="12" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
     </>
   ),
   eye: (
@@ -174,6 +191,12 @@ const ICONS: Record<CustomIconName, ReactNode> = {
       <path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7Z" />
     </>
   ),
+  suspend: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9 9v6M15 9v6" />
+    </>
+  ),
   star: <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z" />,
   sticker: (
     <>
@@ -196,6 +219,11 @@ const ICONS: Record<CustomIconName, ReactNode> = {
     </>
   ),
   tools: <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.3-2.3Z" />,
+  trash: (
+    <>
+      <path d="M4 7h16M10 11v6M14 11v6M6 7l1 14h10l1-14M9 7V4h6v3" />
+    </>
+  ),
   user: (
     <>
       <circle cx="12" cy="8" r="4" />

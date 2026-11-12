@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Icon } from "@components/dashboard/icons";
+import { SUPPORT_PHONE, SUPPORT_TEL_URL, SUPPORT_WHATSAPP_URL } from "@lib/support";
 
 const SUPPORT_GROUP_URL = process.env.NEXT_PUBLIC_WHATSAPP_SUPPORT_URL;
 
@@ -83,6 +84,26 @@ export default function SupportPage() {
             </div>
           )}
         </div>
+      </section>
+
+      <section className="mt-4 flex flex-col gap-3 rounded-2xl border border-white/[0.07] bg-[#151517] p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-white">Atendimento direto</h2>
+          <p className="mt-1 text-sm text-zinc-400">
+            <a href={SUPPORT_TEL_URL} className="transition hover:text-emerald-300">
+              {SUPPORT_PHONE}
+            </a>
+          </p>
+        </div>
+        <a
+          href={SUPPORT_WHATSAPP_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.08] px-4 text-sm font-medium text-emerald-200 transition hover:bg-emerald-300/[0.14]"
+        >
+          <Icon name="whatsapp" className="h-4 w-4" />
+          Falar com o suporte
+        </a>
       </section>
 
       <section className="mt-8">

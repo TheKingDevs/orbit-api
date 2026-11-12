@@ -1,5 +1,6 @@
 import { DangerError, NotFoundError } from '@errors/index';
 import { storageService } from '@services/storage.service';
+import { fetchSafeUrl } from '@utils/urlSecurity.util';
 
 function parseRange(range: string, size: number): { start: number; end: number } | undefined {
   const match = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
@@ -42,7 +43,7 @@ export async function storageRoute(req: Request, url: URL): Promise<Response> {
   const remote = await storageService.resolveRemote(filename);
   if (remote) {
     const range = req.headers.get('range');
-    const upstream = await fetch(remote.url, {
+    const upstream = await fetchSafeUrl(remote.url, {
       method: req.method === 'HEAD' ? 'HEAD' : 'GET',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

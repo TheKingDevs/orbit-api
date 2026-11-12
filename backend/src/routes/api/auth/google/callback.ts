@@ -62,7 +62,8 @@ async function resolveUser(profile: {
 }): Promise<User> {
   const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
   const isConfiguredOwner = Boolean(ownerEmail) && profile.email.trim().toLowerCase() === ownerEmail;
-  let user = db.findByGoogleSubject(profile.subject) ?? db.findByEmail(profile.email);
+  const userByGoogleSubject = db.findByGoogleSubject(profile.subject);
+  let user = userByGoogleSubject ?? db.findByEmail(profile.email);
 
   if (!user) {
     const newKey = db.generateApiKey();
@@ -75,19 +76,23 @@ async function resolveUser(profile: {
       role: isConfiguredOwner ? 'owner' : 'public',
       dailyRequests: 0,
       lastResetDate: new Date().toISOString().split('T')[0],
+      monthlyRequests: 0,
+      lastMonthlyResetMonth: new Date().toISOString().slice(0, 7),
       violationCount: 0,
       name: profile.name,
       picture: profile.picture,
       googleSubjectHash: hashSensitive(profile.subject)
     });
   } else {
-    user.email = profile.email;
+    // Preserve an email changed by an administrator for an already-linked Google account.
+    if (!userByGoogleSubject) user.email = profile.email;
     user.name = profile.name ?? user.name;
     user.picture = profile.picture ?? user.picture;
     user.googleSubjectHash = hashSensitive(profile.subject);
     if (isConfiguredOwner) {
       user.role = 'owner';
       user.plan = 'gold';
+      user.planExpiresAt = undefined;
     } else if (ownerEmail && user.role === 'owner') {
       user.role = 'public';
     }
@@ -131,6 +136,18 @@ export async function googleCallbackRoute(req: Request): Promise<Response> {
     }
 
     return redirectToLoginError(req, 'auth_failed');
+  }
+
+  db.refreshUserSuspension(user);
+  if (user.isSuspended && user.suspensionType !== 'temporary') {
+    const noticeCookie = serializeCookie('orbit_suspension_notice', user.suspensionReason?.slice(0, 500) || 'Esta conta foi suspensa permanentemente.', {
+      maxAge: 60 * 60,
+      path: '/',
+      httpOnly: false,
+      secure: isSecureRequest(req),
+      sameSite: 'Lax'
+    });
+    return redirectWithCookies(getFrontendUrl('/'), [clearStateCookie(req), noticeCookie]);
   }
 
   const session = await sessionManager.create(user.id);

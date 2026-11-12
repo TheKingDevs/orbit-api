@@ -40,15 +40,19 @@ O servidor escuta em `http://localhost:3000` por padrão. Para executar frontend
 | `COOKIE_SECURE` | Use `true` em produção com HTTPS; use `false` apenas no desenvolvimento HTTP local. |
 | `OWNER_API_KEY`, `ADMIN_API_KEY`, `PUBLIC_API_KEY` | API keys por nível de acesso. Configure segredos fortes em produção. |
 | `OWNER_EMAIL` | E-mail reservado ao papel `owner`; configure em vez de codificar esse valor no código. |
-| `CORS_ORIGIN` | Allowlist de origens web cross-origin. Aceita uma ou mais origens HTTP(S) separadas por vírgula, sem caminhos ou curingas. É usada nos headers CORS, preflight `OPTIONS` e validação de origem em operações de sessão. |
+| `CORS_ORIGIN` | Allowlist adicional de origens web cross-origin. Aceita uma ou mais origens HTTP(S) separadas por vírgula, sem caminhos ou curingas. `FRONTEND_URL` e `BACKEND_URL` também são permitidas automaticamente. |
 | `PUBLIC_BASE_URL` | Base usada nos links `/storage/<id>.<ext>` retornados por endpoints de mídia. Deve ser acessível pelo consumidor. |
 | `DOCS_PREVIEW_DAILY_LIMIT` | Limite diário de prévias documentais para sessões autenticadas. |
 | `MONGO_URI`, `MONGO_DB_NAME` | Conexão e nome do banco. `MONGO_URI` é obrigatório em produção; o nome padrão é `orbit`. |
+| `MERCADO_PAGO_ACCESS_TOKEN` | Access token da aplicação Mercado Pago usada para criar e consultar pedidos da Orders API. |
+| `MERCADO_PAGO_WEBHOOK_SECRET` | Chave secreta de assinatura configurada para o webhook de pedidos. O endpoint é `/api/webhooks/mercado-pago`. |
 | `DATA_ENCRYPTION_KEY` | Chave Base64 de 32 bytes para criptografia AES-256-GCM e hashes HMAC dos dados persistidos. Gere com `openssl rand -base64 32`. |
 | `AIHORDE_API_KEY` | Chave opcional para geração de imagens pelo AI Horde; sem ela, a integração usa a chave pública de baixa prioridade. |
 | `TESSERACT_PATH` | Caminho opcional do executável Tesseract. Se vazio, procura `tesseract` no `PATH`. |
 
 O arquivo [`.env.example`](.env.example) contém valores de desenvolvimento. Não use as chaves de exemplo em produção. `DATA_ENCRYPTION_KEY` precisa permanecer estável enquanto os dados criptografados existentes forem usados; uma troca sem migração impede sua leitura.
+
+Para pagamentos dos planos, configure no painel do Mercado Pago um webhook do tópico `order` apontando para `https://<domínio-da-api>/api/webhooks/mercado-pago` e copie o segredo da assinatura para `MERCADO_PAGO_WEBHOOK_SECRET`. Configure também `MERCADO_PAGO_ACCESS_TOKEN` e `FRONTEND_URL`. A renovação só é aplicada após confirmação assinada e consulta do pedido na Orders API; os pedidos ficam registrados na coleção `billing_orders`.
 
 Os downloads do YouTube usam a operação `ytSearch` do SDK DevWorld e os endpoints de mídia do provedor. As rotas existentes mantêm os parâmetros `url` e `name` e não dependem de yt-dlp nem de cookies locais.
 
@@ -65,9 +69,9 @@ A tabela completa de parâmetros e exemplos de consumo fica no dashboard, em `/a
 OCR roda localmente pelo Tesseract e aceita PNG, JPEG, GIF, WebP, BMP e TIFF de até 15 MB. Resumo usa a integração GPT já configurada e envia o texto ao provedor de IA; aceita até 10.000 caracteres, dividindo textos longos em partes compatíveis com o SDK atual. Resumo de áudio combina a transcrição local Whisper (até 50 MB e 10 minutos) com essa integração GPT, desde que a transcrição tenha até 10.000 caracteres. Os três endpoints usam a autenticação da API e contabilizam uma requisição por chamada.
 - **Administração:** gerenciamento de usuários e API keys; ações de owner para excluir contas e atualizar planos.
 
-Endpoints de uso da API aceitam a API Key em `x-apikey` ou `x-api-key`, ou como `apikey`/`apiKey` na query string. As rotas de conta, administração e owner usam sessão; API keys não substituem a autenticação da sessão. Operações de escrita com sessão exigem CSRF.
+Endpoints de uso da API aceitam a API Key somente nos headers `x-apikey` ou `x-api-key`; não envie chaves em URLs. As rotas de conta, administração e owner usam sessão; API keys não substituem a autenticação da sessão. Operações de escrita com sessão exigem CSRF.
 
-Configure `CORS_ORIGIN` apenas quando um browser precisar acessar o backend em outro domínio. A política aceita credenciais e os headers `Content-Type`, `Range`, `X-Apikey`, `X-Api-Key` e `X-CSRF-Token`; origens não listadas recebem `403`. CORS controla o acesso de browsers e não substitui API keys, sessões ou autorização.
+Configure `CORS_ORIGIN` para origens adicionais quando um browser precisar acessar o backend em outro domínio. `FRONTEND_URL` e `BACKEND_URL` entram automaticamente na allowlist. A política aceita credenciais e os headers `Content-Type`, `Range`, `X-Apikey`, `X-Api-Key` e `X-CSRF-Token`; origens não listadas recebem `403`. CORS controla o acesso de browsers e não substitui API keys, sessões ou autorização.
 
 Arquivos gerados ou baixados são servidos por `/storage/<id>.<ext>`. Referências e arquivos locais têm validade temporária; configure `PUBLIC_BASE_URL` para que os links retornados apontem ao host correto.
 
