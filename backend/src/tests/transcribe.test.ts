@@ -166,8 +166,9 @@ describe('Endpoint /api/transcribe', () => {
       form.set('file', new File([new Uint8Array([1, 2, 3])], 'audio.mp3', { type: 'audio/mpeg' }));
       form.set('language', 'en');
 
-      const req = new Request(`http://localhost/api/transcribe?apikey=${apiKey}`, {
+      const req = new Request('http://localhost/api/transcribe', {
         method: 'POST',
+        headers: { 'x-apikey': apiKey },
         body: form
       });
       const res = await transcribeRoute(req, new URL(req.url));
@@ -198,9 +199,10 @@ describe('Endpoint /api/transcribe', () => {
     TranscriptionService.transcribe = async () => mocked;
 
     try {
-      const req = new Request(`http://localhost/api/transcribe?apikey=${apiKey}&language=pt`, {
+      const req = new Request('http://localhost/api/transcribe?language=pt', {
         method: 'POST',
         headers: {
+          'x-apikey': apiKey,
           'content-type': 'audio/mpeg',
           'x-filename': 'audio.mp3'
         },
@@ -219,8 +221,9 @@ describe('Endpoint /api/transcribe', () => {
 
   test('POST multipart sem arquivo retorna erro de validação', async () => {
     const apiKey = db.getAllUsers().find(u => u.role === 'public')?.apiKey || process.env.PUBLIC_API_KEY || 'public-token';
-    const req = new Request(`http://localhost/api/transcribe?apikey=${apiKey}`, {
+    const req = new Request('http://localhost/api/transcribe', {
       method: 'POST',
+      headers: { 'x-apikey': apiKey },
       body: new FormData()
     });
 

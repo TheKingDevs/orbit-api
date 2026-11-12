@@ -6,6 +6,11 @@ import { Icon } from "@components/dashboard/icons";
 import { useUsageStats } from "@lib/auth/useUsage";
 
 const CHANNEL_URL = process.env.NEXT_PUBLIC_WHATSAPP_CHANNEL_URL;
+const planDateFormatter = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric"
+});
 
 const ROLE_LABELS: Record<string, string> = {
   public: "Usuário",
@@ -22,7 +27,11 @@ interface DashboardHomeProps {
   plan: string | undefined;
   role: string | undefined;
   dailyRequests: number | undefined;
+  monthlyRequests: number | undefined;
+  requestsUsed: number | undefined;
   limit: number | null | undefined;
+  limitPeriod: "day" | "month" | undefined;
+  planExpiresAt: string | null | undefined;
 }
 
 function planLabel(plan: string | undefined): string {
@@ -46,13 +55,20 @@ export default function DashboardHome({
   plan,
   role,
   dailyRequests,
-  limit
+  monthlyRequests,
+  requestsUsed: sessionRequestsUsed,
+  limit,
+  limitPeriod,
+  planExpiresAt: sessionPlanExpiresAt
 }: DashboardHomeProps) {
   const { data: usageData } = useUsageStats(7);
   const summary = usageData?.summary;
   const currentPlan = summary?.plan ?? plan;
   const currentRole = summary?.role ?? role;
-  const usedRequests = summary?.dailyRequestsUsed ?? dailyRequests ?? 0;
+  const planExpiresAt = summary?.planExpiresAt ?? sessionPlanExpiresAt;
+  const usedRequests = summary?.requestsUsed ?? sessionRequestsUsed ?? (
+    currentPlan === "free" ? dailyRequests ?? 0 : monthlyRequests ?? 0
+  );
   const requestLimit = summary?.limit ?? limit ?? null;
   const remainingRequests =
     summary?.remainingRequests ??
@@ -102,9 +118,20 @@ export default function DashboardHome({
               </dd>
             </div>
 
+            {currentPlan !== "free" && planExpiresAt ? (
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-sm text-zinc-400">Validade</dt>
+                <dd className="text-sm font-semibold tabular-nums text-white">
+                  {planDateFormatter.format(new Date(planExpiresAt))}
+                </dd>
+              </div>
+            ) : null}
+
             <div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-sm text-zinc-400">Requests</dt>
+                <dt className="text-sm text-zinc-400">
+                  {(summary?.limitPeriod ?? limitPeriod) === "month" ? "Requests no mês" : "Requests hoje"}
+                </dt>
                 <dd className="text-sm font-semibold text-white">{requestsLabel}</dd>
               </div>
               {requestLimit !== null && requestLimit > 0 ? (
@@ -125,6 +152,15 @@ export default function DashboardHome({
               </dd>
             </div>
           </dl>
+
+          {currentPlan === "free" && planExpiresAt && Date.parse(planExpiresAt) <= Date.now() ? (
+            <div className="mt-5 rounded-xl border border-amber-300/15 bg-amber-300/[0.05] px-3 py-2.5 text-xs leading-relaxed text-amber-100/80">
+              Seu plano pago venceu. A conta voltou ao Free.{" "}
+              <Link href="/app/planos" className="font-semibold text-amber-100 hover:text-white">
+                Renovar plano
+              </Link>
+            </div>
+          ) : null}
 
           <Link
             href="/me"
@@ -188,6 +224,14 @@ export default function DashboardHome({
                 className="flex h-12 w-full items-center justify-center rounded-xl border border-violet-400/20 bg-violet-400/[0.08] text-sm font-semibold text-violet-200 transition hover:border-violet-300/40 hover:bg-violet-400/15 hover:text-white"
               >
                 Assine um plano para aumentar seus limites!
+              </Link>
+            ) : currentPlan === "basic" ? (
+              <Link
+                href="/app/planos"
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-3 text-center text-sm font-semibold text-amber-100 transition hover:border-amber-200/35 hover:bg-amber-300/[0.12]"
+              >
+                <Icon name="sparkles" className="h-4 w-4 shrink-0" />
+                Suba de nível com o plano Gold!
               </Link>
             ) : (
               <div className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-violet-400/20 bg-violet-400/[0.06] text-sm font-medium text-violet-200">

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import SessionGate from '@components/SessionGate';
 import { Icon, type IconName } from '@components/dashboard/icons';
 import { useAuth } from '@lib/auth/AuthProvider';
@@ -8,7 +9,8 @@ import {
   useUsageStats,
   type UsageDay,
   type UsageEndpoint,
-  type UsageRequest
+  type UsageRequest,
+  type UsagePagination
 } from '@lib/auth/useUsage';
 
 const PLAN_LABELS: Record<string, string> = {
@@ -217,10 +219,18 @@ function TopEndpoints({
 
 function RequestHistory({
   requests,
-  loading
+  loading,
+  refreshing,
+  pagination,
+  onPageChange,
+  onLimitChange
 }: {
   requests: UsageRequest[];
   loading: boolean;
+  refreshing: boolean;
+  pagination?: UsagePagination;
+  onPageChange: (page: number) => void;
+  onLimitChange: (limit: number) => void;
 }) {
   return (
     <section className="rounded-2xl border border-white/[0.07] bg-[#151517] p-5 sm:p-6">
@@ -234,11 +244,32 @@ function RequestHistory({
             Acompanhe os últimos acessos feitos com sua conta.
           </p>
         </div>
-        {!loading && requests.length > 0 ? (
-          <span className="rounded-full border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 text-[11px] text-zinc-500">
-            {requests.length} recentes
-          </span>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-xl border border-white/[0.08] bg-[#101012] p-1" role="group" aria-label="Requisições por página">
+            {[10, 50].map((limit) => (
+              <button
+                key={limit}
+                type="button"
+                onClick={() => onLimitChange(limit)}
+                aria-pressed={(pagination?.limit ?? 10) === limit}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                  (pagination?.limit ?? 10) === limit
+                    ? 'bg-violet-400/15 text-violet-200 shadow-sm ring-1 ring-violet-300/15'
+                    : 'text-zinc-500 hover:text-zinc-200'
+                }`}
+              >
+                {limit}
+              </button>
+            ))}
+          </div>
+          {pagination ? (
+            <span className="rounded-full border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 text-[11px] text-zinc-500">
+              {pagination.total === 0
+                ? '0 requisições'
+                : `${(pagination.page - 1) * pagination.limit + 1}–${(pagination.page - 1) * pagination.limit + requests.length} de ${pagination.total}`}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       {loading ? (
@@ -292,6 +323,27 @@ function RequestHistory({
               </li>
             ))}
           </ul>
+          {pagination && pagination.total > pagination.limit ? (
+            <div className="mt-4 flex items-center justify-between border-t border-white/[0.06] pt-4">
+              <button
+                type="button"
+                onClick={() => onPageChange(pagination.page - 1)}
+                disabled={pagination.page <= 1 || refreshing}
+                className="rounded-lg border border-white/[0.08] px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Anterior
+              </button>
+              <span className="text-xs text-zinc-500">Página {pagination.page}</span>
+              <button
+                type="button"
+                onClick={() => onPageChange(pagination.page + 1)}
+                disabled={!pagination.hasMore || refreshing}
+                className="rounded-lg border border-white/[0.08] px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Próxima
+              </button>
+            </div>
+          ) : null}
         </>
       ) : (
         <div className="mt-6 flex flex-col items-center justify-center rounded-xl border border-dashed border-white/[0.08] px-6 py-10 text-center">
@@ -310,11 +362,18 @@ function RequestHistory({
 
 function AccountContent() {
   const { user } = useAuth();
-  const { data, loading, error } = useUsageStats(14);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyLimit, setHistoryLimit] = useState(10);
+  const { data, loading, refreshing, error } = useUsageStats(14, {
+    page: historyPage,
+    limit: historyLimit
+  });
   const summary = data?.summary;
   const plan = summary?.plan ?? user?.plan;
   const role = summary?.role ?? user?.role;
-  const used = summary?.dailyRequestsUsed ?? user?.dailyRequests ?? 0;
+  const used = summary?.requestsUsed ?? user?.requestsUsed ?? (
+    plan === 'basic' ? user?.monthlyRequests ?? 0 : user?.dailyRequests ?? 0
+  );
   const limit = summary?.limit ?? user?.limit ?? null;
   const remaining =
     summary?.remainingRequests ?? (limit === null ? null : Math.max(0, limit - used));
@@ -345,8 +404,18 @@ function AccountContent() {
         </div>
 
         <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-[#151517] px-4 py-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-violet-400/20 bg-violet-400/15 text-sm font-semibold text-violet-200">
+          <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-violet-400/20 bg-violet-400/15 text-sm font-semibold text-violet-200">
             {initial}
+            {user?.picture ? (
+              <img
+                src={user.picture}
+                alt=""
+                aria-hidden="true"
+                referrerPolicy="no-referrer"
+                onError={(event) => { event.currentTarget.style.display = 'none'; }}
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : null}
           </span>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-white">{displayName}</p>
@@ -379,7 +448,11 @@ function AccountContent() {
           icon="key"
           label="Requests hoje"
           value={requestsLabel}
-          detail={limit === null ? 'Sem limite diário' : `${used} usados de ${limit}`}
+          detail={
+            limit === null
+              ? 'Sem limite mensal'
+              : `${used} usados de ${limit} ${plan === 'basic' ? 'no mês' : 'hoje'}`
+          }
         />
         <SummaryCard
           icon="user"
@@ -400,7 +473,17 @@ function AccountContent() {
         <TopEndpoints endpoints={endpoints} loading={loading} />
       </div>
 
-      <RequestHistory requests={requests} loading={loading} />
+      <RequestHistory
+        requests={requests}
+        loading={loading}
+        refreshing={refreshing}
+        pagination={data?.usage.pagination}
+        onPageChange={setHistoryPage}
+        onLimitChange={(limitValue) => {
+          setHistoryLimit(limitValue);
+          setHistoryPage(1);
+        }}
+      />
     </div>
   );
 }

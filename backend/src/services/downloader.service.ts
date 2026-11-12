@@ -3,7 +3,7 @@ import { DownloadContext, DownloadRequestDTO, DownloadResponseDTO } from '@types
 import { WarningError, DangerError } from '@errors/index';
 import { Logger } from '@utils/logger';
 import { MediaType, StoredMedia, storageService } from '@services/storage.service';
-import { validateSafeUrl, TrustedPlatform } from '@utils/urlSecurity.util';
+import { fetchSafeUrl, validateSafeUrl, TrustedPlatform } from '@utils/urlSecurity.util';
 import { devWorldBRService } from '@services/devworldbr.service';
 
 interface MediaMetadata {
@@ -170,7 +170,7 @@ class BaseDownloaderService implements IDownloaderService {
     if (type === 'audio') return undefined;
 
     try {
-      const res = await fetch(url, {
+      const res = await fetchSafeUrl(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'

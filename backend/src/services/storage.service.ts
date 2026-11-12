@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs';
 import { extname, join, resolve } from 'path';
 import { randomUUID } from 'crypto';
-import { validateSafeUrl } from '@utils/urlSecurity.util';
+import { fetchSafeUrl, validateSafeUrl } from '@utils/urlSecurity.util';
 import { WarningError } from '@errors/index';
 
 export type MediaType = 'video' | 'audio' | 'image' | 'gif';
@@ -141,7 +141,7 @@ class StorageService {
     this.ensureDirectory();
     const safeUrl = validateSafeUrl(sourceUrl);
 
-    const response = await fetch(safeUrl, {
+    const response = await fetchSafeUrl(safeUrl, {
       headers: {
         'User-Agent': USER_AGENT,
         'Accept': '*/*',

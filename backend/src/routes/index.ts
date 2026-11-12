@@ -48,6 +48,8 @@ import { audioSummarizeRoute } from './api/audio/summarize';
 import { userBalanceRoute } from './api/user/balance';
 import { userKeyRoute } from './api/user/key';
 import { userUsageRoute } from './api/user/usage';
+import { billingCheckoutRoute } from './api/user/billingCheckout';
+import { mercadoPagoWebhookRoute } from './api/webhooks/mercadoPago';
 
 import { googleAuthRoute } from './api/auth/google';
 import { googleCallbackRoute } from './api/auth/google/callback';
@@ -56,6 +58,7 @@ import { authLogoutRoute } from './api/auth/logout';
 
 import { userManagerRoute } from './admin/userManager';
 import { managerKeysRoute } from './admin/managerKeys';
+import { adminUserDetailRoute } from './admin/userDetail';
 
 import { deleteUserRoute } from './owner/deleteUser';
 import { updatePlanRoute } from './owner/updatePlan';
@@ -78,6 +81,8 @@ export async function router(req: Request): Promise<Response> {
   // --- API USER & BALANCE ---
   if (req.method === 'GET' && path === '/api/user/key') return userKeyRoute(req);
   if (req.method === 'GET' && path === '/api/user/usage') return userUsageRoute(req, url);
+  if (req.method === 'POST' && path === '/api/user/billing/checkout') return billingCheckoutRoute(req);
+  if (req.method === 'POST' && path === '/api/webhooks/mercado-pago') return mercadoPagoWebhookRoute(req, url);
   if (path === '/api/user/balance') return userBalanceRoute(req);
 
   // --- API AUTH (Google OAuth) ---
@@ -134,6 +139,7 @@ export async function router(req: Request): Promise<Response> {
   if (path === '/api/audio/summarize') return audioSummarizeRoute(req, url);
 
   // --- ADMIN ---
+  if (path.startsWith('/api/admin/users/')) return adminUserDetailRoute(req, url);
   if (path === '/api/admin/users') return userManagerRoute(req);
   if (path === '/api/admin/keys') return managerKeysRoute(req);
 

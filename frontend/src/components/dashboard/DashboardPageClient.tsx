@@ -21,7 +21,11 @@ export default function DashboardPageClient() {
         plan={user?.plan}
         role={user?.role}
         dailyRequests={user?.dailyRequests}
+        monthlyRequests={user?.monthlyRequests}
+        requestsUsed={user?.requestsUsed}
         limit={user?.limit}
+        limitPeriod={user?.limitPeriod}
+        planExpiresAt={user?.planExpiresAt}
       />
     </div>
   );

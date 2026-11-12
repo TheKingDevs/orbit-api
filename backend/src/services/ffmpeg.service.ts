@@ -3,7 +3,7 @@ import { join } from 'path';
 import { DangerError, InvalidParameterError } from '@errors/index';
 import { CanvasEffect, ImageFormat, MirrorDirection } from '@types/canvasEffects.type';
 import { getTempDir } from '@utils/temp.util';
-import { validateSafeUrl } from '@utils/urlSecurity.util';
+import { fetchSafeUrl, validateSafeUrl } from '@utils/urlSecurity.util';
 
 const MAX_INPUT_BYTES = 20 * 1024 * 1024;
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -229,7 +229,7 @@ class FfmpegServiceImpl {
     let response: Response;
 
     try {
-      response = await fetch(url, {
+      response = await fetchSafeUrl(url, {
         headers: {
           'User-Agent': USER_AGENT,
           'Accept': 'image/*,*/*;q=0.8'

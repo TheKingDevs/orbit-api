@@ -9,6 +9,7 @@ import { sessionManager } from '@services/session.service';
 import { closeDatabase, connectDatabase } from '@services/mongo.service';
 import { applyCorsHeaders, handleCorsRequest } from '@middlewares/corsMiddleware';
 import { enforceAuthRateLimit } from '@utils/authRateLimit.util';
+import { billingService } from '@modules/billing/billing.service';
 
 const port = Number(process.env.PORT) || 3000;
 const MAX_REQUEST_BODY_BYTES = 51 * 1024 * 1024;
@@ -37,6 +38,7 @@ function redirectToError(req: Request, statusCode: number): Response | null {
 async function start(): Promise<void> {
   await connectDatabase();
   await db.init();
+  await billingService.init();
   await sessionManager.init();
 
   const server = Bun.serve({

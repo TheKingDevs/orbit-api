@@ -22,6 +22,13 @@ export interface UsageEndpoint {
   count: number;
 }
 
+export interface UsagePagination {
+  page: number;
+  limit: number;
+  total: number;
+  hasMore: boolean;
+}
+
 export interface UsageSummary {
   email: string;
   name: string | null;
@@ -29,7 +36,11 @@ export interface UsageSummary {
   plan: string;
   role: string;
   dailyRequestsUsed: number;
+  monthlyRequestsUsed: number;
+  requestsUsed: number;
   limit: number | null;
+  limitPeriod: "day" | "month";
+  planExpiresAt: string | null;
   remainingRequests: number | null;
   isSuspended: boolean;
   lastResetDate: string;
@@ -41,20 +52,32 @@ export interface UsageStatsResponse {
   usage: {
     daily: UsageDay[];
     recent: UsageRequest[];
+    pagination: UsagePagination;
     topEndpoints: UsageEndpoint[];
     totalRequests: number;
   };
 }
 
-export function useUsageStats(days = 14) {
+export interface UsageStatsOptions {
+  page?: number;
+  limit?: number;
+}
+
+export function useUsageStats(days = 14, options: UsageStatsOptions = {}) {
+  const page = options.page ?? 1;
+  const limit = options.limit ?? 10;
   const [data, setData] = useState<UsageStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     let active = true;
+    setRefreshing(true);
 
-    apiFetch<UsageStatsResponse>(`/api/user/usage?days=${days}`)
+    apiFetch<UsageStatsResponse>(
+      `/api/user/usage?days=${days}&page=${page}&limit=${limit}`
+    )
       .then((payload) => {
         if (!active) return;
 
@@ -65,13 +88,16 @@ export function useUsageStats(days = 14) {
         if (active) setError(true);
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (!active) return;
+
+        setLoading(false);
+        setRefreshing(false);
       });
 
     return () => {
       active = false;
     };
-  }, [days]);
+  }, [days, page, limit]);
 
-  return { data, loading, error };
+  return { data, loading, refreshing, error };
 }

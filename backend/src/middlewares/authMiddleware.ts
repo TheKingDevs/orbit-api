@@ -1,6 +1,6 @@
 import { UserRole, User } from '@models/User';
 import { db } from '@utils/db.util';
-import { ForbiddenError, UnauthorizedError } from '@errors/index';
+import { AccountSuspendedError, ForbiddenError, UnauthorizedError } from '@errors/index';
 import { parseCookies } from '@utils/cookies.util';
 import { CSRF_COOKIE, SESSION_COOKIE, sessionManager } from '@services/session.service';
 import { markAuthenticatedRequest } from '@services/requestTrace.service';
@@ -88,9 +88,12 @@ export function sessionAuthMiddleware(req: Request, requiredRoles?: UserRole[]):
     throw new UnauthorizedError('Usuário da sessão não encontrado.');
   }
 
+  db.refreshUserSuspension(sessionUser);
   if (sessionUser.isSuspended) {
-    throw new ForbiddenError('Esta conta foi suspensa temporariamente.');
+    throw new AccountSuspendedError(`Esta conta está suspensa${sessionUser.suspensionType === 'temporary' ? ' temporariamente' : ' permanentemente'}. Motivo: ${(sessionUser.suspensionReason || 'Violação das diretrizes').slice(0, 500)}`, sessionUser.suspensionType !== 'temporary');
   }
+
+  db.refreshUserPlan(sessionUser);
 
   if (requiredRoles && requiredRoles.length > 0 && !requiredRoles.includes(sessionUser.role)) {
     throw new ForbiddenError(`Seu cargo (${sessionUser.role}) não possui autorização para este recurso.`);
@@ -106,7 +109,7 @@ export function sessionAuthMiddleware(req: Request, requiredRoles?: UserRole[]):
  * Suporta:
  * 1. Sessão ativa via cookie (para pré-visualização e testes pela interface web)
  * 2. Header `x-apikey` (ou `x-api-key`)
- * 3. Parâmetro de busca na URL (`apikey` ou `apiKey`)
+ * 3. API keys não são aceitas em query strings para evitar exposição em logs/histórico.
  *
  * Os parâmetros `token` e o header `Authorization: Bearer` foram removidos propositalmente para mitigar vulnerabilidades,
  * garantindo que a API Key não seja tratada como credencial de autenticação de sessão.
@@ -143,21 +146,15 @@ export function authMiddleware(req: Request, requiredRoles?: UserRole[], consume
       throw new UnauthorizedError('Usuário da sessão não encontrado.');
     }
 
-    user = sessionUser;
+    user = db.refreshUserSuspension(db.refreshUserPlan(sessionUser));
     limiterKey = `session:${authenticated.sessionHash}`;
   } else {
-    const url = new URL(req.url);
-    const apiKeyFromQuery =
-      url.searchParams.get('apikey') ||
-      url.searchParams.get('apiKey');
-
     const apiKeyHeader = req.headers.get('x-apikey') || req.headers.get('x-api-key');
-
-    const apiKey = apiKeyHeader?.trim() || apiKeyFromQuery?.trim();
+    const apiKey = apiKeyHeader?.trim();
 
     if (!apiKey) {
       recordFailedApiKeyAttempt(req);
-      throw new UnauthorizedError('API Key necessária. Envie o header x-apikey ou o parâmetro apikey na URL.');
+      throw new UnauthorizedError('API Key necessária. Envie a chave no header x-apikey ou x-api-key.');
     }
 
     if (preview.requested) {

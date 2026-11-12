@@ -2,6 +2,7 @@
 import Link from "next/link";
 import CurrentYear from "@components/landing/CurrentYear";
 import LandingHeader from "@components/landing/LandingHeader";
+import PermanentSuspensionNotice from "@components/landing/PermanentSuspensionNotice";
 import OrbitLogo from "@components/landing/OrbitLogo";
 import { Icon, type IconName } from "@components/dashboard/icons";
 import { DOCS } from "@lib/docs";
@@ -130,7 +131,7 @@ const STEPS = [
   {
     title: "Copie sua API Key",
     description:
-      "Sua chave fica disponível no dashboard e pode ser enviada no header x-apikey ou na URL.",
+      "Sua chave fica disponível no dashboard e deve ser enviada no header x-apikey.",
   },
   {
     title: "Faça a primeira chamada",
@@ -143,12 +144,12 @@ const FAQ = [
   {
     question: "Preciso pagar para usar a Orbit API?",
     answer:
-      "Não. O plano Free permite 100 requisições por dia. Os planos Basic e Gold ampliam os limites para quem precisa de mais volume.",
+      "Não. O Free permite 100 requisições por dia, o Basic inclui 1.500 requisições por mês e o Gold não tem limite mensal. Basic tem prioridade média e Gold prioridade máxima no suporte.",
   },
   {
     question: "Como envio minha API Key?",
     answer:
-      "Envie o header x-apikey com a sua chave de API. Também é possível usar o parâmetro apikey na URL para testes rápidos.",
+      "Envie o header x-apikey com a sua chave de API. Não coloque a chave na URL.",
   },
   {
     question: "Quais serviços estão disponíveis hoje?",
@@ -235,6 +236,7 @@ export default function Home() {
       />
       <div className="relative z-10">
         <LandingHeader />
+        <PermanentSuspensionNotice />
 
         <main>
           {/* Hero */}
@@ -600,7 +602,7 @@ export default function Home() {
 
                 <p className="mt-5 max-w-xs text-xs leading-6 text-zinc-500">
                   Uma plataforma de recursos e ferramentas para
-                  desenvolvedores criarem sem limites. Integre downloads,
+                  desenvolvedores criarem e integrarem. Integre downloads,
                   inteligência artificial, Canvas e muito mais.
                 </p>
               </div>

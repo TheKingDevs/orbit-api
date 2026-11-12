@@ -14,8 +14,30 @@ export interface NewsEntry {
 
 export const NEWS: NewsEntry[] = [
   {
-    date: "7 de novembro de 2026",
+    date: "10 de novembro de 2026",
     version: APP_VERSION,
+    title: "Mais endpoints e melhorias no painel da conta",
+    summary:
+      `A versão ${APP_VERSION} amplia as opções de IA e download e melhora o acompanhamento e a personalização da conta.`,
+    items: [
+      "Novos endpoints de IA: geração de imagens com Stable Diffusion (/api/ai/image), OCR (/api/ai/ocr), resumo de texto (/api/ai/summarize) e resumo de áudio ou vídeo (/api/audio/summarize).",
+      "Novas opções de download para Pinterest, Spotify, Threads, Google Drive, CapCut e Twitter/X.",
+      "Histórico de requisições com opção de exibir 10 ou 50 itens e navegação entre páginas; cada registro mantém endpoint, método, status, duração e horário.",
+      "O contador diário é atualizado ao abrir a sessão, mesmo antes de fazer uma nova requisição à API.",
+      "Foto da conta Google exibida no menu lateral e na página Minha conta.",
+      "Planos atualizados: Basic com 1.500 requisições mensais e prioridade média; Gold ilimitado por mês e prioridade máxima no suporte.",
+      "Planos pagos têm validade mensal; ao vencer, a conta retorna ao Free e o painel mostra a opção de renovação.",
+      "Contratação e renovação dos planos Basic e Gold com checkout seguro do Mercado Pago, confirmação automática do pagamento e ativação do período mensal.",
+      "Melhorias visuais no histórico e nos controles de navegação da conta."
+    ],
+    link: {
+      label: "Explorar novos recursos",
+      href: "/app/doc/image-ai/stable-diffusion"
+    }
+  },
+  {
+    date: "7 de novembro de 2026",
+    version: "2.0.0",
     title: "Novos recursos de IA, downloads e métricas de uso",
     summary:
       "Versão 2.0.0 com novas APIs de inteligência artificial, downloads ampliados, pesquisa no YouTube e painel de consumo de requisições.",
@@ -30,7 +52,7 @@ export const NEWS: NewsEntry[] = [
       "Ambiente interativo na documentação com prévias ao vivo dos resultados."
     ],
     link: {
-      label: "Explorar novos recursos",
+      label: "Explorar recursos da versão 2.0.0",
       href: "/app/doc/text-ai/gpt"
     }
   },

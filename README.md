@@ -135,11 +135,13 @@ Preencha os valores locais. **Nunca versione arquivos `.env`.**
 | `COOKIE_SECURE` | Use `true` em produção com HTTPS. |
 | `OWNER_API_KEY` / `ADMIN_API_KEY` / `PUBLIC_API_KEY` | Chaves de acesso da API. |
 | `OWNER_EMAIL` | E-mail reservado ao papel owner; configure no ambiente, sem codificá-lo no projeto. |
-| `CORS_ORIGIN` | Allowlist de origens web cross-origin. Aceita origens HTTP(S) separadas por vírgula, sem caminhos ou curingas; controla CORS, preflight e validação de origem da sessão. |
+| `CORS_ORIGIN` | Origens adicionais HTTP(S) para CORS, separadas por vírgula. `FRONTEND_URL` e `BACKEND_URL` também são permitidas automaticamente. |
 | `PUBLIC_BASE_URL` | URL pública usada na geração de links (produção). |
 | `DOCS_PREVIEW_DAILY_LIMIT` | Limite diário de pré-visualizações da documentação. |
 | `MONGO_URI` | Connection string do MongoDB. Obrigatória em produção. |
 | `MONGO_DB_NAME` | Nome do banco de dados MongoDB (padrão: `orbit`). |
+| `MERCADO_PAGO_ACCESS_TOKEN` | Access token usado para criar e consultar pedidos da Orders API. |
+| `MERCADO_PAGO_WEBHOOK_SECRET` | Segredo de assinatura do webhook de pedidos; configure a URL `/api/webhooks/mercado-pago` no painel do Mercado Pago. |
 | `DATA_ENCRYPTION_KEY` | Chave Base64 de 32 bytes para criptografia e hashes; gere com `openssl rand -base64 32` e não altere sem migração. |
 | `AIHORDE_API_KEY` | Chave opcional para geração de imagens via AI Horde. |
 

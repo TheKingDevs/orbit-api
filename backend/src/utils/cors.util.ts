@@ -22,9 +22,11 @@ export function normalizeOrigin(value: string | null | undefined): string | null
 }
 
 export function getConfiguredCorsOrigins(): Set<string> {
+  const configuredOrigins = (process.env.CORS_ORIGIN || '').split(',');
+  const applicationOrigins = [process.env.FRONTEND_URL, process.env.BACKEND_URL];
+
   return new Set(
-    (process.env.CORS_ORIGIN || '')
-      .split(',')
+    [...configuredOrigins, ...applicationOrigins]
       .map(origin => normalizeOrigin(origin))
       .filter((origin): origin is string => Boolean(origin))
   );

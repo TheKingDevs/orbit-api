@@ -4,5 +4,6 @@ export * from './DangerError';
 export * from './InvalidParameterError';
 export * from './UnauthorizedError';
 export * from './ForbiddenError';
+export * from './AccountSuspendedError';
 export * from './NotFoundError';
 export * from './RateLimitError';

@@ -1,7 +1,8 @@
 import { sessionAuthMiddleware } from '@middlewares/authMiddleware';
+import { db } from '@utils/db.util';
 
 export async function userKeyRoute(req: Request): Promise<Response> {
-  const user = sessionAuthMiddleware(req);
+  const user = db.refreshUserPlan(sessionAuthMiddleware(req));
 
   return Response.json({
     success: true,

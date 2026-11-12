@@ -1,4 +1,8 @@
 import { isIP } from 'node:net';
+import { lookup } from 'node:dns/promises';
+import { request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
+import { Readable } from 'node:stream';
 import { InvalidParameterError } from '@errors/index';
 
 export type TrustedPlatform =
@@ -102,6 +106,107 @@ export interface ValidateUrlOptions {
   requireHttps?: boolean;
 }
 
+export interface SafeFetchOptions extends ValidateUrlOptions {
+  maxRedirects?: number;
+}
+
+function isPublicIPv4(address: string): boolean {
+  const parts = address.split('.').map(Number);
+  if (parts.length !== 4 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) return false;
+  const value = parts.reduce((total, part) => (total << 8) | part, 0) >>> 0;
+  const blocked: Array<[number, number]> = [
+    [0x00000000, 8], [0x0a000000, 8], [0x64400000, 10], [0x7f000000, 8],
+    [0xa9fe0000, 16], [0xac100000, 12], [0xc0000000, 24], [0xc0000200, 24],
+    [0xc0586300, 24], [0xc0a80000, 16], [0xc6120000, 15], [0xc6336400, 24],
+    [0xcb007100, 24], [0xe0000000, 4], [0xf0000000, 4]
+  ];
+  return !blocked.some(([network, bits]) => (value >>> (32 - bits)) === (network >>> (32 - bits)));
+}
+
+function ipv6ToBigInt(address: string): bigint | undefined {
+  const normalized = address.toLowerCase().split('%')[0];
+  const halves = normalized.split('::');
+  if (halves.length > 2) return undefined;
+  const parseHalf = (half: string): number[] => half ? half.split(':').map(part => parseInt(part, 16)) : [];
+  let groups = [...parseHalf(halves[0]), ...(halves.length === 2 ? Array(8 - parseHalf(halves[0]).length - parseHalf(halves[1]).length).fill(0) : []), ...(halves.length === 2 ? parseHalf(halves[1]) : [])];
+  if (groups.length !== 8 || groups.some(group => !Number.isInteger(group) || group < 0 || group > 0xffff)) return undefined;
+  return groups.reduce((value, group) => (value << 16n) | BigInt(group), 0n);
+}
+
+export function isPublicIp(address: string): boolean {
+  const family = isIP(address);
+  if (family === 4) return isPublicIPv4(address);
+  if (family !== 6) return false;
+
+  const value = ipv6ToBigInt(address);
+  if (value === undefined) return false;
+  const inRange = (network: bigint, bits: number) => (value >> BigInt(128 - bits)) === (network >> BigInt(128 - bits));
+  const globalUnicast = inRange(0x20000000000000000000000000000000n, 3);
+  const special = [
+    [0x20010000000000000000000000000000n, 23], // IETF protocol assignments
+    [0x20010db8000000000000000000000000n, 32], // documentation
+    [0x20020000000000000000000000000000n, 16], // 6to4 embeds IPv4
+    [0x3fff0000000000000000000000000000n, 20] // documentation
+  ] as const;
+  return globalUnicast && !special.some(([network, bits]) => inRange(network, bits));
+}
+
+function requestPinned(url: URL, init: RequestInit, addresses: Awaited<ReturnType<typeof lookup>>): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const requestFn = url.protocol === 'https:' ? httpsRequest : httpRequest;
+    const headers = new Headers(init.headers);
+    headers.delete('host');
+    headers.delete('connection');
+    headers.delete('transfer-encoding');
+    if (!headers.has('accept-encoding')) headers.set('accept-encoding', 'identity');
+
+    const pinnedLookup = (_hostname: string, options: { all?: boolean }, callback: (...args: any[]) => void) => {
+      if (options?.all) callback(null, addresses);
+      else callback(null, addresses[0].address, addresses[0].family);
+    };
+    const request = requestFn(url, {
+      method: init.method,
+      headers: Object.fromEntries(headers.entries()),
+      lookup: pinnedLookup as never,
+      signal: init.signal ?? undefined
+    }, upstream => {
+      const responseHeaders = new Headers();
+      for (let index = 0; index < upstream.rawHeaders.length; index += 2) {
+        const name = upstream.rawHeaders[index];
+        if (!['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade'].includes(name.toLowerCase())) {
+          responseHeaders.append(name, upstream.rawHeaders[index + 1]);
+        }
+      }
+      const noBody = init.method === 'HEAD' || [204, 205, 304].includes(upstream.statusCode ?? 0);
+      const body = noBody ? null : Readable.toWeb(upstream) as ReadableStream<Uint8Array>;
+      resolve(new Response(body, {
+        status: upstream.statusCode ?? 502,
+        statusText: upstream.statusMessage,
+        headers: responseHeaders
+      }));
+    });
+    request.once('error', reject);
+    request.end();
+  });
+}
+
+async function fetchPinnedPublicUrl(rawUrl: string, init: RequestInit): Promise<Response> {
+  const url = new URL(rawUrl);
+  if (url.username || url.password) throw new InvalidParameterError('Credenciais embutidas em URL não são permitidas.');
+
+  let addresses: Awaited<ReturnType<typeof lookup>>;
+  try {
+    addresses = await lookup(url.hostname, { all: true, verbatim: true });
+  } catch {
+    throw new InvalidParameterError('Não foi possível resolver o domínio da URL remota.');
+  }
+  if (addresses.length === 0 || addresses.some(entry => !isPublicIp(entry.address))) {
+    throw new InvalidParameterError('A URL remota resolve para um endereço IP não público.');
+  }
+
+  return requestPinned(url, init, addresses);
+}
+
 /**
  * Valida se uma URL é segura para ser acessada pelo backend:
  * 1. Exige protocolo HTTP ou HTTPS (rejeita file://, gopher://, data://, etc.)
@@ -143,6 +248,10 @@ export function validateSafeUrl(
 
   if (options.requireHttps && protocol !== 'https:') {
     throw new InvalidParameterError(`O parâmetro '${field}' deve utilizar HTTPS seguro.`);
+  }
+
+  if (parsed.username || parsed.password) {
+    throw new InvalidParameterError(`Credenciais embutidas em URL não são permitidas em '${field}'.`);
   }
 
   const rawHost = parsed.hostname;
@@ -192,5 +301,45 @@ export function isSafeUrl(rawUrl: string | null | undefined, options: ValidateUr
     return true;
   } catch {
     return false;
+  }
+}
+
+/** Fetches user-influenced URLs without allowing automatic redirects to bypass URL validation. */
+export async function fetchSafeUrl(
+  rawUrl: string,
+  init: RequestInit = {},
+  options: SafeFetchOptions = {}
+): Promise<Response> {
+  const method = (init.method ?? 'GET').toUpperCase();
+  if (method !== 'GET' && method !== 'HEAD') {
+    throw new InvalidParameterError('A busca segura aceita somente GET ou HEAD.');
+  }
+
+  const { maxRedirects = 5, ...validateOptions } = options;
+  let currentUrl = validateSafeUrl(rawUrl, validateOptions);
+
+  for (let redirects = 0; ; redirects++) {
+    const response = await fetchPinnedPublicUrl(currentUrl, { ...init, method });
+    const isRedirect = [301, 302, 303, 307, 308].includes(response.status);
+    const location = isRedirect ? response.headers.get('location') : null;
+    if (!location) return response;
+
+    await response.body?.cancel();
+    if (redirects >= maxRedirects) {
+      throw new InvalidParameterError('A URL excedeu o limite de redirecionamentos permitidos.');
+    }
+
+    const nextUrl = new URL(location, currentUrl).toString();
+    const validatedNextUrl = validateSafeUrl(nextUrl, validateOptions);
+    const previousOrigin = new URL(currentUrl).origin;
+    const nextOrigin = new URL(validatedNextUrl).origin;
+    if (previousOrigin !== nextOrigin) {
+      const headers = new Headers(init.headers);
+      headers.delete('authorization');
+      headers.delete('cookie');
+      headers.delete('proxy-authorization');
+      init = { ...init, headers };
+    }
+    currentUrl = validatedNextUrl;
   }
 }

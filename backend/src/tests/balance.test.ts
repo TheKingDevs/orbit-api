@@ -5,11 +5,10 @@ import { db } from '@utils/db.util';
 describe('Endpoint /api/user/balance', () => {
   const apiKey = db.getAllUsers()[0]?.apiKey || process.env.PUBLIC_API_KEY || 'public-token';
 
-  test('Deve retornar o saldo via query param sem consumir créditos', async () => {
+  test('Deve rejeitar API Key em query string', async () => {
     const req = new Request(`http://localhost:3000/api/user/balance?apikey=${apiKey}`);
-    const res = await userBalanceRoute(req);
-    const data = (await res.json()) as any;
-    expect(data.success).toBe(true);
+    const result = await userBalanceRoute(req).catch((error) => error);
+    expect(result).toBeInstanceOf(Error);
   });
 
   test('Deve retornar o saldo via header x-apikey', async () => {

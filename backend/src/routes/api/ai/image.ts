@@ -1,6 +1,7 @@
 import { authMiddleware } from '@middlewares/authMiddleware';
 import { DangerError, InvalidParameterError } from '@errors/index';
 import { jsonResponse } from '@utils/request.util';
+import { APP_VERSION } from '@utils/appVersion';
 
 const HORDE_API = 'https://aihorde.net/api/v2';
 
@@ -47,7 +48,7 @@ export async function imageGenerationRoute(req: Request): Promise<Response> {
     headers: {
       'Content-Type': 'application/json',
       apikey: process.env.AIHORDE_API_KEY || '0000000000',
-      'Client-Agent': 'Orbit-API:2.0.0:github.com/orbit-api'
+      'Client-Agent': `Orbit-API:${APP_VERSION}:github.com/orbit-api`
     },
     body: JSON.stringify(payload)
   });
@@ -69,7 +70,7 @@ export async function imageGenerationStatusRoute(req: Request, url: URL): Promis
   const response = await fetch(`${HORDE_API}/generate/status/${encodeURIComponent(id)}`, {
     headers: {
       apikey: process.env.AIHORDE_API_KEY || '0000000000',
-      'Client-Agent': 'Orbit-API:2.0.0:github.com/orbit-api'
+      'Client-Agent': `Orbit-API:${APP_VERSION}:github.com/orbit-api`
     }
   });
   const data = await response.json().catch(() => null);
