@@ -84,7 +84,9 @@ export default function AdminUserEditorClient({ userId }: { userId: string }) {
   }, [authorized, router, status]);
 
   useEffect(() => {
-    if (authorized) void loadUser();
+    if (!authorized) return;
+    const timer = window.setTimeout(() => void loadUser(), 0);
+    return () => window.clearTimeout(timer);
   }, [authorized, loadUser]);
 
   async function save(event: React.FormEvent<HTMLFormElement>) {

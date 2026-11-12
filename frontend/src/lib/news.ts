@@ -16,19 +16,15 @@ export const NEWS: NewsEntry[] = [
   {
     date: "10 de novembro de 2026",
     version: APP_VERSION,
-    title: "Mais endpoints e melhorias no painel da conta",
-    summary:
-      `A versão ${APP_VERSION} amplia as opções de IA e download e melhora o acompanhamento e a personalização da conta.`,
+    title: "Ajustes na API e no painel",
+    summary: `A versão ${APP_VERSION} traz novos recursos e melhorias para a Orbit API.`,
     items: [
-      "Novos endpoints de IA: geração de imagens com Stable Diffusion (/api/ai/image), OCR (/api/ai/ocr), resumo de texto (/api/ai/summarize) e resumo de áudio ou vídeo (/api/audio/summarize).",
-      "Novas opções de download para Pinterest, Spotify, Threads, Google Drive, CapCut e Twitter/X.",
-      "Histórico de requisições com opção de exibir 10 ou 50 itens e navegação entre páginas; cada registro mantém endpoint, método, status, duração e horário.",
-      "O contador diário é atualizado ao abrir a sessão, mesmo antes de fazer uma nova requisição à API.",
-      "Foto da conta Google exibida no menu lateral e na página Minha conta.",
-      "Planos atualizados: Basic com 1.500 requisições mensais e prioridade média; Gold ilimitado por mês e prioridade máxima no suporte.",
-      "Planos pagos têm validade mensal; ao vencer, a conta retorna ao Free e o painel mostra a opção de renovação.",
-      "Contratação e renovação dos planos Basic e Gold com checkout seguro do Mercado Pago, confirmação automática do pagamento e ativação do período mensal.",
-      "Melhorias visuais no histórico e nos controles de navegação da conta."
+      "Novos endpoints de IA para imagens, OCR e resumos.",
+      "Mais opções de download em diferentes plataformas.",
+      "Histórico de requisições com paginação e seleção de 10 ou 50 itens.",
+      "Melhorias nos dados e na foto de perfil exibidos no painel.",
+      "Ajustes nos planos Basic e Gold e contratação pelo Mercado Pago.",
+      "Melhorias na administração e na navegação da conta."
     ],
     link: {
       label: "Explorar novos recursos",

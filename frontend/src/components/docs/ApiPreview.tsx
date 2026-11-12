@@ -91,39 +91,6 @@ function isHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
 }
 
-function isImageUrl(value: string): boolean {
-  if (!isHttpUrl(value)) return false;
-
-  return (
-    /\.(?:avif|gif|jpe?g|png|webp)(?:[?#]|$)/i.test(value) ||
-    /(?:pinimg|ytimg|tiktokcdn|sndcdn|fbcdn|cdninstagram|googleusercontent|unsplash|pexels|wallhaven|imgur)/i.test(
-      value
-    )
-  );
-}
-
-function collectImages(value: unknown, key = "", found: string[] = []): string[] {
-  if (typeof value === "string") {
-    if (isImageUrl(value) && !found.includes(value)) found.push(value);
-    return found;
-  }
-
-  if (Array.isArray(value)) {
-    for (const entry of value) collectImages(entry, key, found);
-    return found;
-  }
-
-  const object = asObject(value);
-
-  if (object) {
-    for (const [childKey, entry] of Object.entries(object)) {
-      collectImages(entry, childKey.toLowerCase(), found);
-    }
-  }
-
-  return found;
-}
-
 function formatViews(value: number): string {
   return compactNumber.format(value);
 }
@@ -1180,11 +1147,9 @@ function JsonFallback({ data }: { data: unknown }) {
 }
 
 function PreviewResult({
-  doc,
   preview,
   data
 }: {
-  doc: ApiDoc;
   preview: DocPreview;
   data: unknown;
 }) {
@@ -1627,7 +1592,7 @@ export default function ApiPreview({ doc, preview }: { doc: ApiDoc; preview: Doc
             </div>
           </div>
         ) : result !== null ? (
-          <PreviewResult doc={doc} preview={preview} data={result} />
+          <PreviewResult preview={preview} data={result} />
         ) : (
           !error && (
             <div className="rounded-xl border border-dashed border-white/[0.12] bg-white/[0.02] px-5 py-7 text-center text-xs text-zinc-600">

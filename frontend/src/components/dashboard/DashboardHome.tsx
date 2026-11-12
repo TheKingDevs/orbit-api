@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Icon } from "@components/dashboard/icons";
 import { useUsageStats } from "@lib/auth/useUsage";
+import { useCurrentTimestamp } from "@lib/useCurrentTimestamp";
 
 const CHANNEL_URL = process.env.NEXT_PUBLIC_WHATSAPP_CHANNEL_URL;
 const planDateFormatter = new Intl.DateTimeFormat("pt-BR", {
@@ -62,6 +63,7 @@ export default function DashboardHome({
   planExpiresAt: sessionPlanExpiresAt
 }: DashboardHomeProps) {
   const { data: usageData } = useUsageStats(7);
+  const currentTimestamp = useCurrentTimestamp();
   const summary = usageData?.summary;
   const currentPlan = summary?.plan ?? plan;
   const currentRole = summary?.role ?? role;
@@ -153,7 +155,7 @@ export default function DashboardHome({
             </div>
           </dl>
 
-          {currentPlan === "free" && planExpiresAt && Date.parse(planExpiresAt) <= Date.now() ? (
+          {currentPlan === "free" && planExpiresAt && currentTimestamp !== null && Date.parse(planExpiresAt) <= currentTimestamp ? (
             <div className="mt-5 rounded-xl border border-amber-300/15 bg-amber-300/[0.05] px-3 py-2.5 text-xs leading-relaxed text-amber-100/80">
               Seu plano pago venceu. A conta voltou ao Free.{" "}
               <Link href="/app/planos" className="font-semibold text-amber-100 hover:text-white">

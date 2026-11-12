@@ -407,6 +407,8 @@ function AccountContent() {
           <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-violet-400/20 bg-violet-400/15 text-sm font-semibold text-violet-200">
             {initial}
             {user?.picture ? (
+              // The Google profile URL is user-specific and intentionally bypasses remote image optimization.
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={user.picture}
                 alt=""

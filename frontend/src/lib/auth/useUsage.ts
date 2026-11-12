@@ -68,12 +68,13 @@ export function useUsageStats(days = 14, options: UsageStatsOptions = {}) {
   const limit = options.limit ?? 10;
   const [data, setData] = useState<UsageStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
+  const requestKey = `${days}:${page}:${limit}`;
+  const [settledRequestKey, setSettledRequestKey] = useState<string | null>(null);
+  const refreshing = !loading && settledRequestKey !== requestKey;
 
   useEffect(() => {
     let active = true;
-    setRefreshing(true);
 
     apiFetch<UsageStatsResponse>(
       `/api/user/usage?days=${days}&page=${page}&limit=${limit}`
@@ -91,13 +92,13 @@ export function useUsageStats(days = 14, options: UsageStatsOptions = {}) {
         if (!active) return;
 
         setLoading(false);
-        setRefreshing(false);
+        setSettledRequestKey(requestKey);
       });
 
     return () => {
       active = false;
     };
-  }, [days, page, limit]);
+  }, [days, page, limit, requestKey]);
 
   return { data, loading, refreshing, error };
 }

@@ -6,6 +6,7 @@ import { Icon } from "@components/dashboard/icons";
 import { SUPPORT_PHONE, SUPPORT_WHATSAPP_URL } from "@lib/support";
 import { useState } from "react";
 import { apiFetch, ApiError } from "@lib/auth/http";
+import { useCurrentTimestamp } from "@lib/useCurrentTimestamp";
 
 const PLANS = [
   {
@@ -49,16 +50,18 @@ const planDateFormatter = new Intl.DateTimeFormat("pt-BR", {
 function PlanCard({
   plan,
   currentPlan,
-  expiresAt
+  expiresAt,
+  currentTimestamp
 }: {
   plan: (typeof PLANS)[number];
   currentPlan: string;
   expiresAt: string | null;
+  currentTimestamp: number | null;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const expiryTime = expiresAt ? Date.parse(expiresAt) : NaN;
-  const isCurrentPlanActive = plan.id === "free" || !Number.isFinite(expiryTime) || expiryTime > Date.now();
+  const isCurrentPlanActive = plan.id === "free" || !Number.isFinite(expiryTime) || currentTimestamp === null || expiryTime > currentTimestamp;
   const current = currentPlan === plan.id && isCurrentPlanActive;
 
   async function startCheckout() {
@@ -121,6 +124,7 @@ function PlanCard({
 
 export default function PlansPage() {
   const { data, loading } = useUsageStats(7);
+  const currentTimestamp = useCurrentTimestamp();
   const currentPlan = data?.summary.plan ?? "free";
   const planExpiresAt = data?.summary.planExpiresAt ?? null;
 
@@ -151,11 +155,12 @@ export default function PlansPage() {
             plan={plan}
             currentPlan={loading ? "" : currentPlan}
             expiresAt={planExpiresAt}
+            currentTimestamp={currentTimestamp}
           />
         ))}
       </div>
 
-      {currentPlan === "free" && planExpiresAt && Date.parse(planExpiresAt) <= Date.now() ? (
+      {currentPlan === "free" && planExpiresAt && currentTimestamp !== null && Date.parse(planExpiresAt) <= currentTimestamp ? (
         <div className="rounded-xl border border-amber-300/15 bg-amber-300/[0.05] px-4 py-3 text-sm text-amber-100/80">
           Seu plano pago venceu e sua conta voltou ao Free. Escolha um plano pago para solicitar a renovação.
         </div>

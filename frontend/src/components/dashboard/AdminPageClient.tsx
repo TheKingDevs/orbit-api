@@ -74,7 +74,9 @@ export default function AdminPageClient() {
   }, [authorized, router, status]);
 
   useEffect(() => {
-    if (authorized) void loadUsers();
+    if (!authorized) return;
+    const timer = window.setTimeout(() => void loadUsers(), 0);
+    return () => window.clearTimeout(timer);
   }, [authorized, loadUsers]);
 
   const filteredUsers = useMemo(() => {

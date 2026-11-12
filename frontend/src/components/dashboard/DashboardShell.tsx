@@ -29,11 +29,7 @@ export default function DashboardShell({ children, hideNavigation = false }: { c
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    if (hideNavigation) setSidebarOpen(false);
-  }, [hideNavigation]);
-
-  useEffect(() => {
-    if (!sidebarOpen) return;
+    if (!sidebarOpen || hideNavigation) return;
 
     const previousBodyOverflow = document.body.style.overflow;
     const previousHtmlOverflow = document.documentElement.style.overflow;
@@ -45,7 +41,7 @@ export default function DashboardShell({ children, hideNavigation = false }: { c
       document.body.style.overflow = previousBodyOverflow;
       document.documentElement.style.overflow = previousHtmlOverflow;
     };
-  }, [sidebarOpen]);
+  }, [hideNavigation, sidebarOpen]);
 
   return (
     <div className="min-h-screen bg-[#0b0b0d] text-white">

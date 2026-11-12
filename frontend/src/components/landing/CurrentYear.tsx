@@ -6,7 +6,8 @@ export default function CurrentYear() {
   const [year, setYear] = useState<number | null>(null);
 
   useEffect(() => {
-    setYear(new Date().getFullYear());
+    const timer = window.setTimeout(() => setYear(new Date().getFullYear()), 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   return <>{year}</>;

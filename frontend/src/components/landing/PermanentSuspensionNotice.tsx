@@ -8,11 +8,14 @@ export default function PermanentSuspensionNotice() {
   const { status, suspensionReason, clearSuspensionNotice } = useAuth();
   const [callbackReason, setCallbackReason] = useState<string | null>(null);
   useEffect(() => {
-    const cookie = document.cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith("orbit_suspension_notice="));
-    if (!cookie) return;
-    const value = cookie.slice("orbit_suspension_notice=".length);
-    try { setCallbackReason(decodeURIComponent(value).slice(0, 500)); } catch { setCallbackReason("Esta conta foi suspensa permanentemente."); }
-    document.cookie = "orbit_suspension_notice=; Path=/; Max-Age=0; SameSite=Lax";
+    const timer = window.setTimeout(() => {
+      const cookie = document.cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith("orbit_suspension_notice="));
+      if (!cookie) return;
+      const value = cookie.slice("orbit_suspension_notice=".length);
+      try { setCallbackReason(decodeURIComponent(value).slice(0, 500)); } catch { setCallbackReason("Esta conta foi suspensa permanentemente."); }
+      document.cookie = "orbit_suspension_notice=; Path=/; Max-Age=0; SameSite=Lax";
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
   const reason = suspensionReason ?? callbackReason;
   if (status !== "suspended" && !callbackReason) return null;
