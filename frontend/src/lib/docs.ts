@@ -764,7 +764,7 @@ export const DOCS: ApiDoc[] = [
     section: "Ferramentas",
     title: "Shazam",
     description:
-      "Identifica uma música a partir de uma URL de áudio e retorna título, artista, capa e preview.",
+      "Identifica uma música a partir de audioUrl ou de um arquivo de áudio enviado em multipart/form-data (campo file, até 50 MB).",
     method: "GET/POST",
     path: "/api/ai/shazam",
     cost: "1 request",
@@ -774,8 +774,14 @@ export const DOCS: ApiDoc[] = [
       {
         name: "audioUrl",
         type: "link",
-        required: true,
-        description: "URL pública do áudio que será identificado (mp3, m4a etc.)."
+        required: false,
+        description: "URL pública do áudio (mp3, m4a etc.). Use audioUrl ou o parâmetro file."
+      },
+      {
+        name: "file",
+        type: "file",
+        required: false,
+        description: "Arquivo de áudio para reconhecimento, enviado em multipart/form-data (até 50 MB). Use file ou audioUrl."
       }
     ]
   },

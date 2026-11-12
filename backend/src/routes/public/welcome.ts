@@ -24,7 +24,7 @@ export async function publicWelcomeRoute(): Promise<Response> {
       gpt: '/api/ai/gpt?query=...',
       groq: '/api/ai/groq?query=...',
       gemini: '/api/ai/gemini?query=...',
-      shazam: '/api/ai/shazam?audioUrl=...',
+      shazam: 'GET /api/ai/shazam?audioUrl=... ou POST /api/ai/shazam (multipart/form-data, campo: file; limite: 50 MB)',
       image_generate: 'POST /api/ai/image (JSON: { prompt, params?, models? })',
       image_status: 'GET /api/ai/image/status?id=...',
       transcribe: 'POST /api/transcribe?language=auto (multipart/form-data, campo: file)',

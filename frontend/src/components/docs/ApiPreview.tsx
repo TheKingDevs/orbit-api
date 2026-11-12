@@ -1207,6 +1207,7 @@ export default function ApiPreview({ doc, preview }: { doc: ApiDoc; preview: Doc
     preview === "transcribe" ||
     preview === "audio-summarize" ||
     (preview === "ocr" && Boolean(selectedFile)) ||
+    (preview === "shazam" && Boolean(selectedFile)) ||
     fields.length === 0 ||
     fields.some((field) => Boolean(values[field.name]?.trim()));
 
@@ -1354,6 +1355,23 @@ export default function ApiPreview({ doc, preview }: { doc: ApiDoc; preview: Doc
             ? requestError.message
             : "Não foi possível executar a transcrição."
         );
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (preview === "shazam" && selectedFile) {
+      setLoading(true);
+      setError(null);
+      setResult(null);
+      try {
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+        const data = await apiFetch<unknown>(doc.path, { method: "POST", body: formData });
+        setResult(data);
+      } catch (requestError) {
+        setError(requestError instanceof ApiError ? requestError.message : "Não foi possível identificar este áudio.");
       } finally {
         setLoading(false);
       }
@@ -1510,17 +1528,17 @@ export default function ApiPreview({ doc, preview }: { doc: ApiDoc; preview: Doc
           </div>
         )}
 
-        {(preview === "transcribe" || preview === "audio-summarize") && (
+        {(preview === "transcribe" || preview === "audio-summarize" || preview === "shazam") && (
           <div className="rounded-xl border border-white/[0.08] bg-[#0c0c0e] p-3 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-zinc-400">Arquivo de áudio</span>
+              <span className="text-xs font-medium text-zinc-400">Arquivo de áudio (máx. 50 MB)</span>
               <span className="text-[11px] text-zinc-500 truncate max-w-[200px]">
                 {selectedFile ? selectedFile.name : "Nenhum selecionado (usará áudio de exemplo)"}
               </span>
             </div>
             <input
               type="file"
-              accept="audio/*,video/*"
+              accept={preview === "shazam" ? "audio/*" : "audio/*,video/*"}
               onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
               className="block w-full text-xs text-zinc-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-white/10 file:bg-white/[0.04] file:text-xs file:font-semibold file:text-zinc-200 file:cursor-pointer hover:file:bg-white/[0.08]"
             />

@@ -62,7 +62,7 @@ A tabela completa de parâmetros e exemplos de consumo fica no dashboard, em `/a
 
 - **Autenticação e conta:** Google OAuth, sessão, logout, API Key, saldo e métricas de uso.
 - **Downloads:** Instagram, TikTok (áudio, vídeo e carrossel), Pinterest, YouTube por URL ou busca, Facebook, SoundCloud, Spotify, Threads, Google Drive, CapCut e Twitter/X.
-- **IA:** GPT, Groq, Gemini, OCR local (`POST /api/ai/ocr`), resumo de texto (`POST /api/ai/summarize`), resumo de áudio (`POST /api/audio/summarize`), Shazam e geração assíncrona de imagens com Stable Diffusion/AI Horde (`POST /api/ai/image`, consulta em `/api/ai/image/status`).
+- **IA:** GPT, Groq, Gemini, OCR local (`POST /api/ai/ocr`), resumo de texto (`POST /api/ai/summarize`), resumo de áudio (`POST /api/audio/summarize`), Shazam por URL ou arquivo (`POST /api/ai/shazam`, multipart `file`, até 50 MB) e geração assíncrona de imagens com Stable Diffusion/AI Horde (`POST /api/ai/image`, consulta em `/api/ai/image/status`).
 - **Canvas e stickers:** cartões welcome/goodbye, TTP/ATTP, efeitos, stickers e conversão para GIF.
 - **Pesquisa e utilitários:** pesquisa do YouTube v1/v2, transcrição Whisper de áudio/vídeo e armazenamento de mídia.
 
