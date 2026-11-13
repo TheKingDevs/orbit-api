@@ -8,10 +8,11 @@ export function proxy(req: NextRequest) {
   const hasSession = req.cookies.has(SESSION_COOKIE);
   const pathname = req.nextUrl.pathname;
 
-  // Checkout uses the same-origin Next.js rewrite. The backend still enforces
-  // the session and CSRF token; remove the browser Origin so deployment aliases
-  // and Vercel preview hosts do not have to be copied into the backend CORS list.
-  if (pathname === "/api/user/billing/checkout") {
+  // These requests use the same-origin Next.js rewrites. Checkout still relies
+  // on backend session and CSRF checks; Shazam relies on backend API-key auth.
+  // Remove browser Origin so deployment aliases and preview hosts do not need
+  // to be copied into the backend CORS list.
+  if (pathname === "/api/user/billing/checkout" || pathname === "/api/ai/shazam") {
     const headers = new Headers(req.headers);
     headers.delete("origin");
     return NextResponse.next({ request: { headers } });
@@ -29,5 +30,9 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/api/user/billing/checkout", "/((?!_next|api|favicon.ico|.*\\..*).*)"]
+  matcher: [
+    "/api/user/billing/checkout",
+    "/api/ai/shazam",
+    "/((?!_next|api|favicon.ico|.*\\..*).*)"
+  ]
 };
