@@ -1,4 +1,4 @@
-import type { TranscribeLanguage } from '@types/transcribe.type';
+import type { TranscribeLanguage } from '@apptypes/transcribe.type';
 
 export interface OcrResult {
   text: string;

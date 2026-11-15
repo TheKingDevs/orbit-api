@@ -1,6 +1,6 @@
 import { DangerError, InvalidParameterError } from '@errors/index';
 import type { IBtchDownloaderService } from '@interface/IBtchDownloader';
-import type { BtchDownloadPlatform } from '@types/download.type';
+import type { BtchDownloadPlatform } from '@apptypes/download.type';
 import { Logger } from '@utils/logger';
 import { validateSafeUrl } from '@utils/urlSecurity.util';
 import type { TrustedPlatform } from '@utils/urlSecurity.util';

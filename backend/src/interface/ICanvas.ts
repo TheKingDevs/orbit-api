@@ -1,6 +1,6 @@
 import { FfmpegOptions, ImageSource } from '@services/ffmpeg.service';
-import { CanvasDTO } from '@types/canvas.type';
-import { StickerEffect } from '@types/sticker.type';
+import { CanvasDTO } from '@apptypes/canvas.type';
+import { StickerEffect } from '@apptypes/sticker.type';
 
 export interface ICanvasService {
   generateWelcomeCard(dto: CanvasDTO): Promise<Buffer>;

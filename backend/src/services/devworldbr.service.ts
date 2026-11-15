@@ -2,8 +2,9 @@ import dwbr from 'devworldbr-sdk';
 import { DangerError, InvalidParameterError } from '@errors/index';
 import { IDevWorldBRService } from '@interface/IDevWorldBR';
 import { Logger } from '@utils/logger';
-import { SdkResponse } from '@types/devworldbr.type';
+import { SdkResponse } from '@apptypes/devworldbr.type';
 import { validateSafeUrl, TrustedPlatform } from '@utils/urlSecurity.util';
+import { firstSuccessful } from '@utils/async.util';
 
 const PROMO_KEYS = ['criador', 'whatsapp'] as const;
 const DEVWORLD_API_BASE = (process.env.DEVWORLDBR_API_BASE || 'https://api.devworldbr.site/api').replace(/\/+$/, '');
@@ -144,36 +145,41 @@ class DevWorldBRService implements IDevWorldBRService {
 
   async tiktokImages(url: string | undefined | null): Promise<SdkResponse> {
     const link = requireUrl(url, 'url', 'tiktok');
+    const response = await firstSuccessful<SdkResponse>([
+      async () => normalizeTikTokImages(await execute('tiktok_images', () => dwbr.tiktok_images(link))),
+      async () => {
+        const fallback = await this.tiktokImagesFromTikWM(link);
+        if (!fallback) throw new DangerError('O fallback de imagens do TikTok não retornou mídia.', 502);
+        return fallback;
+      }
+    ]);
+
+    return response;
+  }
+
+  private async tiktokImagesFromTikWM(link: string): Promise<SdkResponse | undefined> {
     try {
-      const response = await execute('tiktok_images', () => dwbr.tiktok_images(link));
-      return normalizeTikTokImages(response);
-    } catch (err: any) {
-      if (err instanceof InvalidParameterError) throw err;
-      if (err instanceof DangerError && err.statusCode === 504) throw err;
+      const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(link)}`;
+      const res = await fetch(apiUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS)
+      });
+      const json = (await res.json()) as any;
+      if (json.code === 0 && json.data) {
+        const imagens = Array.isArray(json.data.images) && json.data.images.length > 0
+          ? json.data.images
+          : json.data.cover ? [json.data.cover] : [];
 
-      try {
-        const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(link)}`;
-        const res = await fetch(apiUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
-          signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS)
-        });
-        const json = (await res.json()) as any;
-        if (json.code === 0 && json.data) {
-          const imagens = Array.isArray(json.data.images) && json.data.images.length > 0
-            ? json.data.images
-            : json.data.cover ? [json.data.cover] : [];
+        return {
+          status: 200,
+          titulo: json.data.title || '',
+          autor: json.data.author?.nickname || '',
+          imagens
+        };
+      }
+    } catch {}
 
-          return {
-            status: 200,
-            titulo: json.data.title || '',
-            autor: json.data.author?.nickname || '',
-            imagens
-          };
-        }
-      } catch {}
-
-      throw err;
-    }
+    return undefined;
   }
 
   pinterest(queryOrUrl: string | undefined | null): Promise<SdkResponse> {

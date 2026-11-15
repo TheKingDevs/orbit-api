@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "lib": ["esnext", "dom"],
+    "lib": ["esnext", "dom", "dom.iterable"],
     "target": "esnext",
     "module": "esnext",
     "moduleDetection": "force",
@@ -13,20 +13,19 @@
     "outDir": "./dist",
     "strict": true,
     "skipLibCheck": true,
-    "fallbackPolling": "dynamic",
+    "types": ["bun"],
     "forceConsistentCasingInFileNames": true,
-    "baseUrl": ".",
     "paths": {
-      "@src/*": ["src/*"],
-      "@services/*": ["src/services/*"],
-      "@utils/*": ["src/utils/*"],
-      "@middlewares/*": ["src/middlewares/*"],
-      "@errors/*": ["src/errors/*"],
-      "@routes/*": ["src/routes/*"],
-      "@types/*": ["src/types/*"],
-      "@models/*": ["src/models/*"],
-      "@interface/*": ["src/interface/*"],
-      "@modules/*": ["src/modules/*"]
+      "@src/*": ["./src/*"],
+      "@services/*": ["./src/services/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@middlewares/*": ["./src/middlewares/*"],
+      "@errors/*": ["./src/errors/*"],
+      "@routes/*": ["./src/routes/*"],
+      "@apptypes/*": ["./src/types/*"],
+      "@models/*": ["./src/models/*"],
+      "@interface/*": ["./src/interface/*"],
+      "@modules/*": ["./src/modules/*"]
     }
   },
   "include": ["src/**/*"]

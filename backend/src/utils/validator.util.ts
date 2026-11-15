@@ -1,9 +1,9 @@
-import { DownloadSchema, DownloadRequestDTO } from '@types/download.type';
-import { CanvasSchema, CanvasDTO } from '@types/canvas.type';
-import { TtpSchema, TtpDTO } from '@types/ttp.type';
-import { TranscribeSchema, TranscribeDTO } from '@types/transcribe.type';
-import { StickerSchema, StickerDTO } from '@types/sticker.type';
-import { CreateUserSchema, CreateUserDTO } from '@types/user.type';
+import { DownloadSchema, DownloadRequestDTO } from '@apptypes/download.type';
+import { CanvasSchema, CanvasDTO } from '@apptypes/canvas.type';
+import { TtpSchema, TtpDTO } from '@apptypes/ttp.type';
+import { TranscribeSchema, TranscribeDTO } from '@apptypes/transcribe.type';
+import { StickerSchema, StickerDTO } from '@apptypes/sticker.type';
+import { CreateUserSchema, CreateUserDTO } from '@apptypes/user.type';
 import {
   AudioSummarizeOptionsSchema,
   AudioSummarizeOptionsDTO,
@@ -11,7 +11,7 @@ import {
   OcrDTO,
   SummarizeSchema,
   SummarizeDTO
-} from '@types/ai.type';
+} from '@apptypes/ai.type';
 import { InvalidParameterError } from '@errors/index';
 
 export class ValidatorUtil {

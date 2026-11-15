@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { DangerError, InvalidParameterError } from '@errors/index';
-import { CanvasEffect, ImageFormat, MirrorDirection } from '@types/canvasEffects.type';
+import { CanvasEffect, ImageFormat, MirrorDirection } from '@apptypes/canvasEffects.type';
 import { getTempDir } from '@utils/temp.util';
 import { fetchSafeUrl, validateSafeUrl } from '@utils/urlSecurity.util';
 
@@ -233,12 +233,11 @@ class FfmpegServiceImpl {
     }
 
     const validated = validateSafeUrl(source, { fieldName: 'url' });
-    const url = new URL(validated);
 
     let response: Response;
 
     try {
-      response = await fetchSafeUrl(url, {
+      response = await fetchSafeUrl(validated, {
         headers: {
           'User-Agent': USER_AGENT,
           'Accept': 'image/*,*/*;q=0.8'

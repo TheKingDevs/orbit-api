@@ -1,7 +1,7 @@
 import { DangerError, InvalidParameterError } from '@errors/index';
 import type { ISummarizationService } from '@interface/ISummarization';
 import { devWorldBRService } from '@services/devworldbr.service';
-import type { SummarizeOptions } from '@types/ai.type';
+import type { SummarizeOptions } from '@apptypes/ai.type';
 
 const MAX_SOURCE_CHARS = 10_000;
 const MAX_UPSTREAM_QUERY_CHARS = 6_000;

@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { DangerError } from '@errors/index';
 import { ITtpService } from '@interface/ITtp';
-import { TtpDTO } from '@types/ttp.type';
+import { TtpDTO } from '@apptypes/ttp.type';
 import { FontUtil } from '@utils/font.util';
 import { getTempDir } from '@utils/temp.util';
 

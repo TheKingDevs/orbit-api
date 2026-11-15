@@ -10,7 +10,7 @@ export async function canvasWelcomeRoute(req: Request, url: URL): Promise<Respon
 
   const imageBuffer = await CanvasService.generateWelcomeCard(dto);
 
-  return new Response(imageBuffer, {
+  return new Response(imageBuffer as unknown as BodyInit, {
     headers: {
       'Content-Type': 'image/png',
       'Cache-Control': 'public, max-age=86400'

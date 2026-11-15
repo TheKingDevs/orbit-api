@@ -281,14 +281,25 @@ function getDocsPreviewDailyLimit(): number {
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 100;
 }
 
+const USAGE_CACHE_TTL_MS = 5_000;
+const USAGE_CACHE_MAX_ENTRIES = 2_000;
+
+interface UsageCacheEntry {
+  expiresAt: number;
+  value: UsageStats;
+}
+
 class UserDatabase implements IUserService {
   private users: Map<string, User> = new Map();
+  private usersById: Map<string, User> = new Map();
   private tokenRateLimits: Map<string, RateLimitTracker> = new Map();
   private fingerprintRateLimits: Map<string, RateLimitTracker> = new Map();
   private lastRateLimitCleanupAt = 0;
   private requestHistory: Map<string, RequestRecord[]> = new Map();
   private requestDailyUsage: Map<string, Map<string, number>> = new Map();
   private requestEndpointUsage: Map<string, Map<string, number>> = new Map();
+  private usageCache: Map<string, UsageCacheEntry> = new Map();
+  private usageInflight: Map<string, Promise<UsageStats>> = new Map();
   private usersCollection: Collection<UserDocument> | null = null;
   private requestCollection: Collection<RequestRecordDocument> | null = null;
 
@@ -356,9 +367,12 @@ class UserDatabase implements IUserService {
   private addUserInMemory(user: User): User {
     user.violationCount = user.violationCount || 0;
     const key = user.apiKey || user.token || '';
+    const existingId = key ? this.users.get(key)?.id : undefined;
     user.apiKey = key;
     user.token = key;
+    if (existingId && existingId !== user.id) this.usersById.delete(existingId);
     this.users.set(key, user);
+    this.usersById.set(user.id, user);
     return user;
   }
 
@@ -380,6 +394,7 @@ class UserDatabase implements IUserService {
     const documents = await this.usersCollection.find({}).toArray();
 
     this.users.clear();
+    this.usersById.clear();
 
     for (const document of documents) {
       const user = fromUserDocument(document);
@@ -477,7 +492,8 @@ class UserDatabase implements IUserService {
     try {
       await this.persistUser(user);
     } catch (error) {
-      this.users.delete(user.apiKey || user.token);
+      this.users.delete(user.apiKey || user.token || '');
+      if (this.usersById.get(user.id) === user) this.usersById.delete(user.id);
       throw error;
     }
 
@@ -485,14 +501,19 @@ class UserDatabase implements IUserService {
   }
 
   public async saveUser(user: User): Promise<void> {
-    const key = user.apiKey || user.token;
+    const key = user.apiKey || user.token || '';
     user.apiKey = key;
     user.token = key;
     await this.persistUser(user);
+    const current = this.usersById.get(user.id);
+    if (current && current !== user) {
+      this.users.delete(current.apiKey || current.token || '');
+    }
     for (const [existingKey, existingUser] of this.users) {
       if (existingUser.id === user.id && existingKey !== key) this.users.delete(existingKey);
     }
     this.users.set(key, user);
+    this.usersById.set(user.id, user);
   }
 
   private async persistUser(user: User, includeSensitive: boolean = true): Promise<void> {
@@ -557,7 +578,7 @@ class UserDatabase implements IUserService {
   }
 
   public findById(id: string): User | undefined {
-    return Array.from(this.users.values()).find(u => u.id === id);
+    return this.usersById.get(id);
   }
 
   public refreshDailyRequests(user: User): User {
@@ -690,10 +711,12 @@ class UserDatabase implements IUserService {
 
     await sessionManager.destroyByUserId(id);
 
-    this.users.delete(user.apiKey || user.token);
+    this.users.delete(user.apiKey || user.token || '');
+    this.usersById.delete(id);
     this.requestHistory.delete(id);
     this.requestDailyUsage.delete(id);
     this.requestEndpointUsage.delete(id);
+    this.invalidateUsageCache(id);
 
     return true;
   }
@@ -731,6 +754,7 @@ class UserDatabase implements IUserService {
     }
 
     endpoints.set(input.path, (endpoints.get(input.path) ?? 0) + 1);
+    this.invalidateUsageCache(userId);
 
     if (!this.requestCollection) return;
 
@@ -748,6 +772,18 @@ class UserDatabase implements IUserService {
     });
   }
 
+  private invalidateUsageCache(userId: string): void {
+    const prefix = `${userId}:`;
+
+    for (const key of this.usageCache.keys()) {
+      if (key.startsWith(prefix)) this.usageCache.delete(key);
+    }
+
+    for (const key of this.usageInflight.keys()) {
+      if (key.startsWith(prefix)) this.usageInflight.delete(key);
+    }
+  }
+
   public async getUsageStats(
     userId: string,
     days: number = 14,
@@ -762,16 +798,52 @@ class UserDatabase implements IUserService {
       ? Math.min(50, Math.max(1, Math.floor(requestedLimit)))
       : 10;
 
-    if (this.requestCollection) {
-      try {
-        return await this.getUsageStatsFromMongo(userId, safeDays, page, limit);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        Logger.error(`Falha ao consultar uso no MongoDB: ${message}`, 'MongoDB');
-      }
+    const cacheKey = `${userId}:${safeDays}:${page}:${limit}`;
+    const cached = this.usageCache.get(cacheKey);
+
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
     }
 
-    return this.getUsageStatsFromMemory(userId, safeDays, page, limit);
+    const pending = this.usageInflight.get(cacheKey);
+    if (pending) return pending;
+
+    const request = (async (): Promise<UsageStats> => {
+      let stats: UsageStats;
+
+      if (this.requestCollection) {
+        try {
+          stats = await this.getUsageStatsFromMongo(userId, safeDays, page, limit);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          Logger.error(`Falha ao consultar uso no MongoDB: ${message}`, 'MongoDB');
+          stats = this.getUsageStatsFromMemory(userId, safeDays, page, limit);
+        }
+      } else {
+        stats = this.getUsageStatsFromMemory(userId, safeDays, page, limit);
+      }
+
+      this.usageCache.set(cacheKey, {
+        expiresAt: Date.now() + USAGE_CACHE_TTL_MS,
+        value: stats
+      });
+
+      while (this.usageCache.size > USAGE_CACHE_MAX_ENTRIES) {
+        const oldest = this.usageCache.keys().next().value;
+        if (oldest === undefined) break;
+        this.usageCache.delete(oldest);
+      }
+
+      return stats;
+    })();
+
+    this.usageInflight.set(cacheKey, request);
+    const release = () => {
+      if (this.usageInflight.get(cacheKey) === request) this.usageInflight.delete(cacheKey);
+    };
+    void request.then(release, release);
+
+    return request;
   }
 
   private async getUsageStatsFromMongo(
@@ -789,36 +861,49 @@ class UserDatabase implements IUserService {
     since.setUTCDate(since.getUTCDate() - (safeDays - 1));
     const skip = (page - 1) * limit;
 
-    const [dailyRows, recentDocuments, topRows, totalRequests] = await Promise.all([
-      this.requestCollection.aggregate<{ _id: string; count: number }>([
-        { $match: { userId, timestamp: { $gte: since } } },
-        {
-          $group: {
-            _id: {
-              $dateToString: {
-                format: '%Y-%m-%d',
-                date: '$timestamp',
-                timezone: 'UTC'
+    const [facet] = await this.requestCollection.aggregate<{
+      daily: Array<{ _id: string; count: number }>;
+      recent: RequestRecordDocument[];
+      top: Array<{ _id: string; count: number }>;
+      total: Array<{ count: number }>;
+    }>([
+      { $match: { userId } },
+      {
+        $facet: {
+          daily: [
+            { $match: { timestamp: { $gte: since } } },
+            {
+              $group: {
+                _id: {
+                  $dateToString: {
+                    format: '%Y-%m-%d',
+                    date: '$timestamp',
+                    timezone: 'UTC'
+                  }
+                },
+                count: { $sum: 1 }
               }
-            },
-            count: { $sum: 1 }
-          }
+            }
+          ],
+          recent: [
+            { $sort: { timestamp: -1 } },
+            { $skip: skip },
+            { $limit: limit }
+          ],
+          top: [
+            { $group: { _id: '$path', count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+            { $limit: 6 }
+          ],
+          total: [{ $count: 'count' }]
         }
-      ]).toArray(),
-      this.requestCollection
-        .find({ userId })
-        .sort({ timestamp: -1 })
-        .skip(skip)
-        .limit(limit)
-        .toArray(),
-      this.requestCollection.aggregate<{ _id: string; count: number }>([
-        { $match: { userId } },
-        { $group: { _id: '$path', count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: 6 }
-      ]).toArray(),
-      this.requestCollection.countDocuments({ userId })
-    ]);
+      }
+    ]).toArray();
+
+    const dailyRows = facet?.daily ?? [];
+    const recentDocuments = facet?.recent ?? [];
+    const topRows = facet?.top ?? [];
+    const totalRequests = facet?.total[0]?.count ?? 0;
 
     const dailyCounts = new Map(dailyRows.map(row => [row._id, row.count]));
     const daily: Array<{ date: string; count: number }> = [];

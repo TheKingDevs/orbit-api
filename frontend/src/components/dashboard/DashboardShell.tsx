@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import Sidebar from "@components/dashboard/Sidebar";
 import { Icon } from "@components/dashboard/icons";
@@ -8,6 +8,15 @@ import AppLoading from "@components/dashboard/AppLoading";
 
 function PathnamePageContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const previousPathname = useRef(pathname);
+
+  // Move o foco para o conteúdo após navegação no cliente, sem rolar a página.
+  // Na carga inicial o foco permanece no topo do documento.
+  useEffect(() => {
+    if (previousPathname.current === pathname) return;
+    previousPathname.current = pathname;
+    document.getElementById("main-content")?.focus({ preventScroll: true });
+  }, [pathname]);
 
   return (
     <div key={pathname} className="page-enter">
@@ -45,6 +54,13 @@ export default function DashboardShell({ children, hideNavigation = false }: { c
 
   return (
     <div className="min-h-screen bg-[#0b0b0d] text-white">
+      <a
+        href="#main-content"
+        className="sr-only rounded-lg border border-violet-400/30 bg-[#151517] px-4 py-2 text-sm font-medium text-violet-200 focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:outline-none focus:ring-2 focus:ring-violet-300/50"
+      >
+        Pular para o conteúdo
+      </a>
+
       {!hideNavigation ? <Suspense fallback={<SidebarFallback />}>
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       </Suspense> : null}
@@ -62,7 +78,11 @@ export default function DashboardShell({ children, hideNavigation = false }: { c
           <span className="text-base font-semibold tracking-tight">Orbit API</span>
         </header> : null}
 
-        <main className="mx-auto w-full max-w-[900px] px-4 py-6 sm:px-6 lg:py-10">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="mx-auto w-full max-w-[900px] px-4 py-6 focus:outline-none sm:px-6 lg:py-10"
+        >
           <Suspense fallback={<AppLoading label="Carregando página..." />}>
             <PathnamePageContent>{children}</PathnamePageContent>
           </Suspense>

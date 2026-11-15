@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Icon } from "@components/dashboard/icons";
-import { useUsageStats } from "@lib/auth/useUsage";
 import { useCurrentTimestamp } from "@lib/useCurrentTimestamp";
 
 const CHANNEL_URL = process.env.NEXT_PUBLIC_WHATSAPP_CHANNEL_URL;
@@ -62,19 +61,16 @@ export default function DashboardHome({
   limitPeriod,
   planExpiresAt: sessionPlanExpiresAt
 }: DashboardHomeProps) {
-  const { data: usageData } = useUsageStats(7);
   const currentTimestamp = useCurrentTimestamp();
-  const summary = usageData?.summary;
-  const currentPlan = summary?.plan ?? plan;
-  const currentRole = summary?.role ?? role;
-  const planExpiresAt = summary?.planExpiresAt ?? sessionPlanExpiresAt;
-  const usedRequests = summary?.requestsUsed ?? sessionRequestsUsed ?? (
+  const currentPlan = plan;
+  const currentRole = role;
+  const planExpiresAt = sessionPlanExpiresAt;
+  const usedRequests = sessionRequestsUsed ?? (
     currentPlan === "free" ? dailyRequests ?? 0 : monthlyRequests ?? 0
   );
-  const requestLimit = summary?.limit ?? limit ?? null;
+  const requestLimit = limit ?? null;
   const remainingRequests =
-    summary?.remainingRequests ??
-    (requestLimit === null ? null : Math.max(0, requestLimit - usedRequests));
+    requestLimit === null ? null : Math.max(0, requestLimit - usedRequests);
   const label = planLabel(currentPlan);
   const requestsLabel =
     requestLimit === null ? "Ilimitado" : `${remainingRequests ?? 0}/${requestLimit}`;
@@ -132,7 +128,7 @@ export default function DashboardHome({
             <div>
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-sm text-zinc-400">
-                  {(summary?.limitPeriod ?? limitPeriod) === "month" ? "Requests no mês" : "Requests hoje"}
+                  {limitPeriod === "month" ? "Requests no mês" : "Requests hoje"}
                 </dt>
                 <dd className="text-sm font-semibold text-white">{requestsLabel}</dd>
               </div>

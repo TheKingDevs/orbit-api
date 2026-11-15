@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { DangerError, InvalidParameterError } from '@errors/index';
 import type { IOcrService, OcrResult } from '@interface/IOcr';
-import type { TranscribeLanguage } from '@types/transcribe.type';
+import type { TranscribeLanguage } from '@apptypes/transcribe.type';
 import { getTempDir } from '@utils/temp.util';
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
@@ -55,7 +55,7 @@ class OcrServiceImpl implements IOcrService {
     try {
       writeFileSync(inputPath, image);
 
-      let processHandle: ReturnType<typeof Bun.spawn>;
+      let processHandle: Bun.ReadableSubprocess;
       try {
         processHandle = Bun.spawn(
           [executable, inputPath, 'stdout', '-l', engineLanguage, '--psm', '3'],

@@ -1,4 +1,6 @@
 import { CSRF_COOKIE } from "@constants";
+import { clearQueryCache } from "./queryCache";
+import { clearSessionSnapshot } from "./sessionSnapshot";
 
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -66,6 +68,8 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   });
 
   if (response.status === 401) {
+    clearSessionSnapshot();
+    clearQueryCache();
     unauthorizedHandler?.();
     throw new ApiError("Sessão expirada. Faça login novamente.", 401);
   }

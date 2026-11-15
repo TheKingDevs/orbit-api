@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, s
 import { extname, join, resolve } from 'path';
 import { DangerError, InvalidParameterError } from '@errors/index';
 import { ITranscriptionEngine, ITranscriptionService, TranscriptionInput } from '@interface/ITranscription';
-import { TranscribeLanguage, TranscriptionResult } from '@types/transcribe.type';
+import { TranscribeLanguage, TranscriptionResult } from '@apptypes/transcribe.type';
 import { Logger } from '@utils/logger';
 import { getTempDir } from '@utils/temp.util';
 

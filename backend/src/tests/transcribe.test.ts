@@ -8,7 +8,7 @@ import { transcribeRoute } from '@routes/api/transcribe';
 import { publicWelcomeRoute } from '@routes/public/welcome';
 import { db } from '@utils/db.util';
 import { TranscriptionService, TranscriptionServiceImpl } from '@services/transcription.service';
-import { TranscribeLanguage, TranscriptionResult } from '@types/transcribe.type';
+import { TranscribeLanguage, TranscriptionResult } from '@apptypes/transcribe.type';
 import { ValidatorUtil } from '@utils/validator.util';
 
 class FakeEngine implements ITranscriptionEngine {

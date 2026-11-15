@@ -47,7 +47,7 @@ class ShazamUploadServiceImpl {
     if (!python) throw new DangerError('Python 3 não está disponível para identificar o áudio.', 503);
 
     activeJobs += 1;
-    let child: ReturnType<typeof Bun.spawn> | undefined;
+    let child: Bun.PipedSubprocess | undefined;
     let timeout: ReturnType<typeof setTimeout> | undefined;
     let timedOut = false;
     try {
@@ -67,8 +67,11 @@ class ShazamUploadServiceImpl {
       }, PROCESS_TIMEOUT_MS);
       timeout.unref?.();
 
-      const writer = child.stdin.getWriter();
-      const writeInput = writer.write(data).finally(() => writer.close());
+      const stdin = child.stdin;
+      const writeInput = (async () => {
+        await stdin.write(data);
+        await stdin.end();
+      })();
       const outputPromise = readLimited(child.stdout, MAX_OUTPUT_BYTES);
       const errorPromise = readLimited(child.stderr, 16 * 1024);
       const [output, _stderr, exitCode] = await Promise.all([

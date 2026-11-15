@@ -1,4 +1,4 @@
-import type { BtchDownloadPlatform } from '@types/download.type';
+import type { BtchDownloadPlatform } from '@apptypes/download.type';
 
 export interface IBtchDownloaderService {
   download(

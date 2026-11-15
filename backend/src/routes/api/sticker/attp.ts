@@ -9,7 +9,7 @@ export async function stickerAttpRoute(req: Request, url: URL): Promise<Response
   const dto = ValidatorUtil.validateTtpPayload(queryObj);
   const gifBuffer = await TtpService.generateAttp(dto);
 
-  return new Response(gifBuffer, {
+  return new Response(gifBuffer as unknown as BodyInit, {
     headers: {
       'Content-Type': 'image/gif',
       'Content-Length': String(gifBuffer.length),

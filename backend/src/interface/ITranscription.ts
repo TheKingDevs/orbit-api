@@ -1,4 +1,4 @@
-import { TranscribeLanguage, TranscriptionResult } from '@types/transcribe.type';
+import { TranscribeLanguage, TranscriptionResult } from '@apptypes/transcribe.type';
 
 export interface TranscriptionInput {
   data: Uint8Array | ArrayBuffer;

@@ -1,7 +1,7 @@
 import { DangerError, InvalidParameterError } from '@errors/index';
 import { authMiddleware } from '@middlewares/authMiddleware';
 import { ImageSource } from '@services/ffmpeg.service';
-import { StickerDTO, StickerFormat } from '@types/sticker.type';
+import { StickerDTO, StickerFormat } from '@apptypes/sticker.type';
 import { ValidatorUtil } from '@utils/validator.util';
 import { validateSafeUrl } from '@utils/urlSecurity.util';
 
@@ -145,7 +145,7 @@ export async function processImageRoute(
   const format = resolved.format ?? options.defaultFormat;
   const contentTypeOutput = format === 'webp' ? 'image/webp' : 'image/png';
 
-  return new Response(output, {
+  return new Response(output as unknown as BodyInit, {
     headers: {
       'Content-Type': contentTypeOutput,
       'Content-Length': String(output.length),

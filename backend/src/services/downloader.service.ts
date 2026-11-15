@@ -1,24 +1,14 @@
-import { IDownloaderService } from '@interface/IDownload';
-import { DownloadContext, DownloadRequestDTO, DownloadResponseDTO } from '@types/download.type';
+import { IDownloaderService, MediaMetadata, ResolvedMedia } from '@interface/IDownload';
+import { DownloadContext, DownloadRequestDTO, DownloadResponseDTO } from '@apptypes/download.type';
 import { WarningError, DangerError } from '@errors/index';
 import { Logger } from '@utils/logger';
 import { MediaType, StoredMedia, storageService } from '@services/storage.service';
 import { fetchSafeUrl, validateSafeUrl, TrustedPlatform } from '@utils/urlSecurity.util';
 import { devWorldBRService } from '@services/devworldbr.service';
+import { firstSuccessful } from '@utils/async.util';
 
-interface MediaMetadata {
-  title?: string;
-  duration?: number;
-  author?: string;
-  thumbnail?: string;
-}
-
-interface ResolvedMedia {
-  mediaType: MediaType;
-  directUrl: string;
-  suggestedExt?: string;
-  metadata: MediaMetadata;
-}
+const PROVIDER_TIMEOUT_MS = 2_200;
+const PINTEREST_FALLBACK_DELAY_MS = 600;
 
 class BaseDownloaderService implements IDownloaderService {
   async processDownload(dto: DownloadRequestDTO, context?: DownloadContext): Promise<DownloadResponseDTO> {
@@ -88,8 +78,11 @@ class BaseDownloaderService implements IDownloaderService {
         }
 
         const pinterestMedia = platform === 'pinterest'
-          ? await this.resolvePinterestMedia(url, type)
+          ? await this.resolvePinterestWithFallback(url || '', type)
           : undefined;
+        if (platform === 'pinterest' && !pinterestMedia) {
+          throw new WarningError('Não foi possível obter a mídia do Pinterest agora. Tente novamente ou use outro link público.', 502);
+        }
         const resolved = pinterestMedia ?? await this.resolveWithDevWorld(url || '', type, platform);
         const storedMedia = platform === 'youtube'
           ? await storageService.registerRemote(resolved.directUrl, resolved.mediaType, resolved.suggestedExt || (resolved.mediaType === 'audio' ? 'mp3' : 'mp4'))
@@ -108,9 +101,10 @@ class BaseDownloaderService implements IDownloaderService {
           }
         };
       } else {
-        const resolved = platform === 'pinterest'
-          ? (await this.resolvePinterestMedia(url || '', type)) || (await this.resolveWithDevWorld(url || '', type, platform))
-          : await this.resolveWithDevWorld(url || '', type, platform);
+        const pinterestMedia = platform === 'pinterest'
+          ? await this.resolvePinterestWithFallback(url || '', type)
+          : null;
+        const resolved = pinterestMedia ?? await this.resolveWithDevWorld(url || '', type, platform);
 
         stored = await storageService.saveFromUrl(resolved.directUrl, resolved.mediaType, resolved.suggestedExt);
         metadata = resolved.metadata;
@@ -135,7 +129,7 @@ class BaseDownloaderService implements IDownloaderService {
     }
   }
 
-  async resolveMediaUrl(dto: DownloadRequestDTO): Promise<{ directUrl: string; mediaType: MediaType; suggestedExt?: string; metadata: MediaMetadata }> {
+  async resolveMediaUrl(dto: DownloadRequestDTO): Promise<ResolvedMedia> {
     try {
       const { url, type, platform } = dto;
 
@@ -232,6 +226,108 @@ class BaseDownloaderService implements IDownloaderService {
       Logger.warning('Scraper do Pinterest falhou.', 'PinterestDownloader');
       return undefined;
     }
+  }
+
+  private async resolvePinterestWithFallback(url: string, type: string): Promise<ResolvedMedia | undefined> {
+    const scraper = this.resolvePinterestMedia(url, type);
+
+    const early = await Promise.race([
+      scraper.then(value => ({ kind: 'scraper' as const, value })),
+      new Promise<{ kind: 'delay' }>(resolve => {
+        const timer = setTimeout(() => resolve({ kind: 'delay' }), PINTEREST_FALLBACK_DELAY_MS);
+        timer.unref?.();
+      })
+    ]);
+
+    if (early.kind === 'scraper' && early.value) return early.value;
+
+    const provider = this.resolvePinterestViaProvider(url, type);
+
+    if (early.kind === 'scraper') {
+      return provider;
+    }
+
+    // A partir do hedge, vence a primeira fonte que realmente devolver mídia.
+    // Assim o provedor rápido não fica preso esperando o scraper lento.
+    return firstSuccessful<ResolvedMedia>([
+      async () => {
+        const resolved = await scraper;
+        if (!resolved) {
+          throw new WarningError('O scraper do Pinterest não retornou mídia.', 502);
+        }
+        return resolved;
+      },
+      () => provider
+    ]);
+  }
+
+  private async resolvePinterestViaProvider(url: string, type: string): Promise<ResolvedMedia> {
+    if (type === 'audio') {
+      throw new WarningError('O Pinterest não oferece áudio para download.', 400);
+    }
+
+    const response = await devWorldBRService.pinterest(url);
+    const directUrl = this.pickPinterestUrl(response, type);
+
+    if (!directUrl) {
+      throw new WarningError('Não foi possível obter a mídia do Pinterest pelo provedor.', 502);
+    }
+
+    const isGif = type === 'gif' || /\.gif(?:[?#]|$)/i.test(directUrl);
+
+    return {
+      mediaType: type === 'video' ? 'video' : isGif ? 'gif' : 'image',
+      directUrl,
+      suggestedExt: type === 'video' ? 'mp4' : isGif ? 'gif' : undefined,
+      metadata: { title: 'Pinterest Media', duration: 0, author: 'Pinterest' }
+    };
+  }
+
+  private pickPinterestUrl(response: unknown, type: string): string | undefined {
+    const candidates: Array<{ url: string; key: string }> = [];
+
+    const collect = (value: unknown, depth = 0, seen = new Set<object>()): void => {
+      if (!value || typeof value !== 'object' || depth > 8 || seen.has(value as object)) return;
+      seen.add(value as object);
+
+      if (Array.isArray(value)) {
+        for (const item of value) collect(item, depth + 1, seen);
+        return;
+      }
+
+      for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+        if (typeof entry === 'string' && /^https:\/\//i.test(entry)) {
+          candidates.push({ url: entry, key: key.toLowerCase() });
+        } else {
+          collect(entry, depth + 1, seen);
+        }
+      }
+    };
+
+    collect(response);
+
+    const extension = type === 'video'
+      ? /\.(?:mp4|webm|mov)(?:[?#]|$)/i
+      : type === 'gif'
+        ? /\.gif(?:[?#]|$)/i
+        : /\.(?:jpe?g|png|webp|gif)(?:[?#]|$)/i;
+    const keyHint = type === 'video'
+      ? /video|play|download|media|hd/i
+      : /image|photo|download|media|origin/i;
+    const unwanted = /avatar|profile|author|user|thumb|preview|small/i;
+
+    const scored = candidates
+      .map(candidate => {
+        let score = 0;
+        if (extension.test(candidate.url)) score += 100;
+        if (keyHint.test(candidate.key)) score += 40;
+        if (keyHint.test(candidate.url)) score += 15;
+        if (unwanted.test(candidate.key) || unwanted.test(candidate.url)) score -= 60;
+        return { ...candidate, score };
+      })
+      .sort((left, right) => right.score - left.score);
+
+    return scored.find(candidate => candidate.score > 0)?.url;
   }
 
   private async resolveTikTokMedia(url: string, type: string): Promise<ResolvedMedia | undefined> {
@@ -365,7 +461,7 @@ export class DownloaderService implements IDownloaderService {
     return this.target.processDownload(dto, context);
   }
 
-  async resolveMediaUrl(dto: DownloadRequestDTO): Promise<{ directUrl: string; mediaType: MediaType; suggestedExt?: string; metadata: MediaMetadata }> {
+  async resolveMediaUrl(dto: DownloadRequestDTO): Promise<ResolvedMedia> {
     return this.target.resolveMediaUrl(dto);
   }
 }

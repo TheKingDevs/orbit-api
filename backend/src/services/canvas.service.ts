@@ -1,8 +1,8 @@
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { ICanvasService } from '@interface/ICanvas';
 import { FfmpegOptions, FfmpegService, ImageSource } from '@services/ffmpeg.service';
-import { CanvasDTO } from '@types/canvas.type';
-import { StickerEffect } from '@types/sticker.type';
+import { CanvasDTO } from '@apptypes/canvas.type';
+import { StickerEffect } from '@apptypes/sticker.type';
 import { FontUtil } from '@utils/font.util';
 import { Logger } from '@utils/logger';
 import { fetchSafeUrl } from '@utils/urlSecurity.util';

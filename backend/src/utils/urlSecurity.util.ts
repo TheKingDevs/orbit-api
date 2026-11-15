@@ -1,4 +1,5 @@
 import { isIP } from 'node:net';
+import type { LookupAddress } from 'node:dns';
 import { lookup } from 'node:dns/promises';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
@@ -151,7 +152,7 @@ export function isPublicIp(address: string): boolean {
   return globalUnicast && !special.some(([network, bits]) => inRange(network, bits));
 }
 
-function requestPinned(url: URL, init: RequestInit, addresses: Awaited<ReturnType<typeof lookup>>): Promise<Response> {
+function requestPinned(url: URL, init: RequestInit, addresses: LookupAddress[]): Promise<Response> {
   return new Promise((resolve, reject) => {
     const requestFn = url.protocol === 'https:' ? httpsRequest : httpRequest;
     const headers = new Headers(init.headers);
@@ -178,7 +179,7 @@ function requestPinned(url: URL, init: RequestInit, addresses: Awaited<ReturnTyp
         }
       }
       const noBody = init.method === 'HEAD' || [204, 205, 304].includes(upstream.statusCode ?? 0);
-      const body = noBody ? null : Readable.toWeb(upstream) as ReadableStream<Uint8Array>;
+      const body = noBody ? null : Readable.toWeb(upstream) as unknown as ReadableStream<Uint8Array>;
       resolve(new Response(body, {
         status: upstream.statusCode ?? 502,
         statusText: upstream.statusMessage,
@@ -194,9 +195,10 @@ async function fetchPinnedPublicUrl(rawUrl: string, init: RequestInit): Promise<
   const url = new URL(rawUrl);
   if (url.username || url.password) throw new InvalidParameterError('Credenciais embutidas em URL não são permitidas.');
 
-  let addresses: Awaited<ReturnType<typeof lookup>>;
+  let addresses: LookupAddress[];
   try {
-    addresses = await lookup(url.hostname, { all: true, verbatim: true });
+    const resolved = await lookup(url.hostname, { all: true, verbatim: true });
+    addresses = Array.isArray(resolved) ? resolved : [resolved];
   } catch {
     throw new InvalidParameterError('Não foi possível resolver o domínio da URL remota.');
   }

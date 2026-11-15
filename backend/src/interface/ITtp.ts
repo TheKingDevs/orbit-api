@@ -1,4 +1,4 @@
-import { TtpDTO } from '@types/ttp.type';
+import { TtpDTO } from '@apptypes/ttp.type';
 
 export interface ITtpService {
   generateTtp(dto: TtpDTO): Promise<Buffer>;

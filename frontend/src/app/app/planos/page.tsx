@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useUsageStats } from "@lib/auth/useUsage";
+import { useAuth } from "@lib/auth/AuthProvider";
 import { Icon } from "@components/dashboard/icons";
 import { SUPPORT_PHONE, SUPPORT_WHATSAPP_URL } from "@lib/support";
 import { useState } from "react";
@@ -123,10 +123,10 @@ function PlanCard({
 }
 
 export default function PlansPage() {
-  const { data, loading } = useUsageStats(7);
+  const { user } = useAuth();
   const currentTimestamp = useCurrentTimestamp();
-  const currentPlan = data?.summary.plan ?? "free";
-  const planExpiresAt = data?.summary.planExpiresAt ?? null;
+  const currentPlan = user?.plan ?? "free";
+  const planExpiresAt = user?.planExpiresAt ?? null;
 
   return (
     <div className="space-y-6">
@@ -153,7 +153,7 @@ export default function PlansPage() {
           <PlanCard
             key={plan.id}
             plan={plan}
-            currentPlan={loading ? "" : currentPlan}
+            currentPlan={currentPlan}
             expiresAt={planExpiresAt}
             currentTimestamp={currentTimestamp}
           />

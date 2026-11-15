@@ -84,7 +84,15 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const activeGroup =
     API_ITEMS.find((item) => item.children?.some((child) => pathname === slugHref(child.slug)))
       ?.label ?? null;
-  const [openGroup, setOpenGroup] = useState<string | null>(activeGroup);
+  // O grupo aberto acompanha a rota atual sem efeito de sincronização. Um
+  // override manual vale apenas para o pathname em que foi escolhido, então
+  // navegações por links diretos/histórico reabrem o grupo correto.
+  const [groupOverride, setGroupOverride] = useState<{
+    pathname: string;
+    label: string | null;
+  } | null>(null);
+  const openGroup =
+    groupOverride?.pathname === pathname ? groupOverride.label : activeGroup;
 
   const displayName = user?.name?.trim() || user?.email?.split("@")[0] || "Usuário";
   const initial = displayName.slice(0, 1).toUpperCase();
@@ -129,7 +137,10 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       <li key={item.label}>
         <button
           type="button"
-          onClick={() => setOpenGroup(expanded ? null : item.label)}
+          onClick={() => setGroupOverride({
+            pathname,
+            label: expanded ? null : item.label
+          })}
           aria-expanded={expanded}
           className={`${NAV_ITEM_BASE} ${active ? NAV_ITEM_ACTIVE : NAV_ITEM_IDLE}`}
         >
@@ -158,8 +169,9 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                   <li key={child.label}>
                     <Link
                       href={slugHref(child.slug)}
+                      prefetch={expanded ? undefined : false}
                       onClick={() => {
-                        setOpenGroup(item.label);
+                        setGroupOverride({ pathname, label: item.label });
                         onClose();
                       }}
                       aria-current={childActive ? "page" : undefined}

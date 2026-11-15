@@ -1,4 +1,4 @@
-import { SdkResponse } from '@types/devworldbr.type';
+import { SdkResponse } from '@apptypes/devworldbr.type';
 
 export interface IDevWorldBRService {
   shazam(audioUrl: string | undefined | null): Promise<SdkResponse>;

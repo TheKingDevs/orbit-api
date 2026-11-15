@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { InvalidParameterError } from '@errors/index';
 import { TtpService } from '@services/ttp.service';
-import { TtpDTO } from '@types/ttp.type';
+import { TtpDTO } from '@apptypes/ttp.type';
 import { ValidatorUtil } from '@utils/validator.util';
 
 const BASE_DTO: TtpDTO = {
@@ -10,6 +10,7 @@ const BASE_DTO: TtpDTO = {
   textColor: '#fbbf24',
   backgroundColor: '#0f172a',
   position: 'center',
+  fontSize: 64,
   effect: 'pulse',
   duration: 1,
   fps: 5

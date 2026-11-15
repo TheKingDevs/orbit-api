@@ -7,11 +7,19 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
   type ReactNode
 } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError, setSuspensionHandler, setUnauthorizedHandler } from "./http";
+import { clearQueryCache } from "./queryCache";
 import { fetchSession, performLogout, startGoogleLogin } from "./session";
+import {
+  clearSessionSnapshot,
+  readSessionSnapshot,
+  subscribeSessionSnapshot,
+  writeSessionSnapshot
+} from "./sessionSnapshot";
 import type { AuthUser } from "@interface";
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated" | "suspended";
@@ -33,17 +41,30 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: "loading", user: null, suspensionReason: null });
   const router = useRouter();
+  const snapshotUser = useSyncExternalStore(
+    subscribeSessionSnapshot,
+    readSessionSnapshot,
+    () => null
+  );
 
   useEffect(() => {
     let active = true;
+    const snapshot = readSessionSnapshot();
 
     setUnauthorizedHandler(() => {
+      clearSessionSnapshot();
+      clearQueryCache();
       if (active) setState({ status: "unauthenticated", user: null, suspensionReason: null });
     });
     setSuspensionHandler((error) => {
+      clearSessionSnapshot();
+      clearQueryCache();
       if (!active) return;
       void fetchSession()
-        .then(({ user }) => setState({ status: "authenticated", user, suspensionReason: null }))
+        .then(({ user }) => {
+          writeSessionSnapshot(user);
+          setState({ status: "authenticated", user, suspensionReason: null });
+        })
         .catch((sessionError: unknown) => {
           if (sessionError instanceof ApiError && sessionError.code === "PermanentSuspension") {
             sessionStorage.setItem("orbit-permanent-suspension", sessionError.message);
@@ -61,17 +82,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then(({ user }) => {
         if (active) {
           sessionStorage.removeItem("orbit-permanent-suspension");
+          writeSessionSnapshot(user);
           setState({ status: "authenticated", user, suspensionReason: null });
         }
       })
       .catch((error: unknown) => {
         if (!active) return;
         if (error instanceof ApiError && error.code === "PermanentSuspension") {
+          clearSessionSnapshot();
+          clearQueryCache();
           sessionStorage.setItem("orbit-permanent-suspension", error.message);
           setState({ status: "suspended", user: null, suspensionReason: error.message });
           router.replace("/");
           return;
         }
+        if (error instanceof ApiError && error.status === 401) {
+          clearSessionSnapshot();
+          clearQueryCache();
+          setState({ status: "unauthenticated", user: null, suspensionReason: null });
+          return;
+        }
+        // Falha de rede/servidor não encerra a sessão: mantém o snapshot
+        // disponível e deixa a próxima navegação revalidar novamente.
+        if (snapshot) return;
         const persistedReason = sessionStorage.getItem("orbit-permanent-suspension");
         if (persistedReason) {
           setState({ status: "suspended", user: null, suspensionReason: persistedReason });
@@ -90,11 +123,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(() => {
     sessionStorage.removeItem("orbit-permanent-suspension");
+    clearSessionSnapshot();
+    clearQueryCache();
     startGoogleLogin();
   }, []);
 
   const clearSuspensionNotice = useCallback(() => {
     sessionStorage.removeItem("orbit-permanent-suspension");
+    clearSessionSnapshot();
+    clearQueryCache();
     setState({ status: "unauthenticated", user: null, suspensionReason: null });
   }, []);
 
@@ -106,14 +143,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     sessionStorage.removeItem("orbit-permanent-suspension");
+    clearSessionSnapshot();
+    clearQueryCache();
     setState({ status: "unauthenticated", user: null, suspensionReason: null });
     router.replace("/login");
   }, [router]);
 
-  const value = useMemo<AuthContextValue>(
-    () => ({ ...state, login, logout, clearSuspensionNotice }),
-    [state, login, logout, clearSuspensionNotice]
-  );
+  const value = useMemo<AuthContextValue>(() => {
+    // O snapshot desta aba permite renderizar o painel antes da revalidação,
+    // sem divergir da hidratação SSR (no servidor ele é sempre nulo).
+    const effectiveState: AuthState =
+      state.status === "loading" && snapshotUser
+        ? { status: "authenticated", user: snapshotUser, suspensionReason: null }
+        : state;
+
+    return { ...effectiveState, login, logout, clearSuspensionNotice };
+  }, [state, snapshotUser, login, logout, clearSuspensionNotice]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

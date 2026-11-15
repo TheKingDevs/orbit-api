@@ -364,7 +364,7 @@ function AccountContent() {
   const { user } = useAuth();
   const [historyPage, setHistoryPage] = useState(1);
   const [historyLimit, setHistoryLimit] = useState(10);
-  const { data, loading, refreshing, error } = useUsageStats(14, {
+  const { data, loading, refreshing, error, reload } = useUsageStats(14, {
     page: historyPage,
     limit: historyLimit
   });
@@ -427,9 +427,22 @@ function AccountContent() {
       </div>
 
       {error ? (
-        <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-4 py-3 text-xs text-amber-200">
-          Não foi possível carregar seu histórico agora. Os dados exibidos podem estar
-          desatualizados.
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-4 py-3 text-xs text-amber-200"
+        >
+          <span>
+            Não foi possível carregar seu histórico agora. Os dados exibidos podem estar
+            desatualizados.
+          </span>
+          <button
+            type="button"
+            onClick={reload}
+            disabled={refreshing}
+            className="rounded-lg border border-amber-300/30 px-3 py-1.5 font-medium text-amber-100 transition hover:bg-amber-300/10 disabled:cursor-wait disabled:opacity-60"
+          >
+            {refreshing ? "Tentando…" : "Tentar novamente"}
+          </button>
         </div>
       ) : null}
 
