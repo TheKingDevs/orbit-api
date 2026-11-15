@@ -5,10 +5,9 @@ import { ITranscriptionEngine, ITranscriptionService, TranscriptionInput } from 
 import { TranscribeLanguage, TranscriptionResult } from '@apptypes/transcribe.type';
 import { Logger } from '@utils/logger';
 import { getTempDir } from '@utils/temp.util';
+import { transcriptionTimeoutMs, transcriptionProcessTimeoutMs } from '@utils/timeout.util';
 
 const MAX_DURATION_SECONDS = 10 * 60;
-const TRANSCRIPTION_TIMEOUT_MS = 2_500;
-const TRANSCRIPTION_PROCESS_TIMEOUT_MS = 2_200;
 const MAX_ACTIVE_TRANSCRIPTIONS = 2;
 let activeTranscriptions = 0;
 const MODEL_BASE_URL = 'https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny/resolve/main';
@@ -62,12 +61,12 @@ class TranscriptionServiceImpl implements ITranscriptionService {
     void operation.then(releaseSlot, releaseSlot);
 
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    const timeoutError = new DangerError('A transcrição excedeu o limite de 2,5 segundos.', 504);
+    const timeoutError = new DangerError('A transcrição excedeu o tempo limite.', 504);
     try {
       return await Promise.race([
         operation,
         new Promise<never>((_, reject) => {
-          timeoutId = setTimeout(() => reject(timeoutError), TRANSCRIPTION_TIMEOUT_MS);
+          timeoutId = setTimeout(() => reject(timeoutError), transcriptionTimeoutMs());
         })
       ]);
     } finally {
@@ -166,14 +165,14 @@ class TranscriptionServiceImpl implements ITranscriptionService {
     const timeout = setTimeout(() => {
       timedOut = true;
       proc.kill();
-    }, TRANSCRIPTION_PROCESS_TIMEOUT_MS);
+    }, transcriptionProcessTimeoutMs());
     timeout.unref?.();
 
     const output = await new Response(proc.stdout).text();
     const exitCode = await proc.exited;
     clearTimeout(timeout);
 
-    if (timedOut) throw new DangerError('A análise do áudio excedeu o limite de 2,2 segundos.', 504);
+    if (timedOut) throw new DangerError('A análise do áudio excedeu o tempo limite.', 504);
 
     if (exitCode !== 0) return;
 
@@ -213,14 +212,14 @@ class TranscriptionServiceImpl implements ITranscriptionService {
     const timeout = setTimeout(() => {
       timedOut = true;
       proc.kill();
-    }, TRANSCRIPTION_PROCESS_TIMEOUT_MS);
+    }, transcriptionProcessTimeoutMs());
     timeout.unref?.();
 
     const stderr = await new Response(proc.stderr).text();
     const exitCode = await proc.exited;
     clearTimeout(timeout);
 
-    if (timedOut) throw new DangerError('A conversão do áudio excedeu o limite de 2,2 segundos.', 504);
+    if (timedOut) throw new DangerError('A conversão do áudio excedeu o tempo limite.', 504);
 
     if (exitCode !== 0) {
       throw new InvalidParameterError(

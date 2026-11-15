@@ -128,15 +128,22 @@ describe('rotas rápidas sem provedores externos', () => {
     }
   });
 
-  test('provedor lento devolve timeout antes de três segundos e não registra o prompt', async () => {
+  test('provedor lento devolve timeout e não registra o prompt', async () => {
+    const previousTimeout = process.env.PROVIDER_TIMEOUT_MS;
+    process.env.PROVIDER_TIMEOUT_MS = '250';
     dwbr.chatgpt = async () => new Promise(resolve => {
-      setTimeout(() => resolve({ response: 'ok' }), 2_350);
+      setTimeout(() => resolve({ response: 'ok' }), 1_000);
     });
 
-    const start = performance.now();
-    await expect(devWorldBRService.gpt('consulta sintética de teste'))
-      .rejects.toMatchObject({ statusCode: 504 });
-    expect(performance.now() - start).toBeLessThan(2_900);
+    try {
+      const start = performance.now();
+      await expect(devWorldBRService.gpt('consulta sintética de teste'))
+        .rejects.toMatchObject({ statusCode: 504 });
+      expect(performance.now() - start).toBeLessThan(900);
+    } finally {
+      if (previousTimeout === undefined) delete process.env.PROVIDER_TIMEOUT_MS;
+      else process.env.PROVIDER_TIMEOUT_MS = previousTimeout;
+    }
 
     await new Promise(resolve => setTimeout(resolve, 250));
   }, 5_000);

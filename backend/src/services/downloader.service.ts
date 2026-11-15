@@ -1,13 +1,13 @@
 import { IDownloaderService, MediaMetadata, ResolvedMedia } from '@interface/IDownload';
 import { DownloadContext, DownloadRequestDTO, DownloadResponseDTO } from '@apptypes/download.type';
-import { WarningError, DangerError } from '@errors/index';
+import { AppError, WarningError, DangerError } from '@errors/index';
 import { Logger } from '@utils/logger';
 import { MediaType, StoredMedia, storageService } from '@services/storage.service';
 import { fetchSafeUrl, validateSafeUrl, TrustedPlatform } from '@utils/urlSecurity.util';
 import { devWorldBRService } from '@services/devworldbr.service';
 import { firstSuccessful } from '@utils/async.util';
+import { mediaFetchTimeoutMs } from '@utils/timeout.util';
 
-const PROVIDER_TIMEOUT_MS = 2_200;
 const PINTEREST_FALLBACK_DELAY_MS = 600;
 
 class BaseDownloaderService implements IDownloaderService {
@@ -124,7 +124,7 @@ class BaseDownloaderService implements IDownloaderService {
         }
       };
     } catch (error: any) {
-      if (error instanceof WarningError) throw error;
+      if (error instanceof AppError) throw error;
       throw new DangerError(`Falha ao obter mídia: ${error.message}`, 500);
     }
   }
@@ -148,7 +148,7 @@ class BaseDownloaderService implements IDownloaderService {
         metadata: resolved.metadata
       };
     } catch (error: any) {
-      if (error instanceof WarningError) throw error;
+      if (error instanceof AppError) throw error;
       throw new DangerError(`Falha ao resolver mídia: ${error.message}`, 500);
     }
   }
@@ -341,7 +341,7 @@ class BaseDownloaderService implements IDownloaderService {
           'Origin': 'https://www.tikwm.com'
         },
         body: new URLSearchParams({ url, hd: '1' }),
-        signal: AbortSignal.timeout(2_200)
+        signal: AbortSignal.timeout(mediaFetchTimeoutMs())
       });
       const json = (await res.json()) as any;
       if (json.code === 0 && json.data) {

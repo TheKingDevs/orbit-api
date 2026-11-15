@@ -4,9 +4,9 @@ import { DangerError, InvalidParameterError } from '@errors/index';
 import type { IOcrService, OcrResult } from '@interface/IOcr';
 import type { TranscribeLanguage } from '@apptypes/transcribe.type';
 import { getTempDir } from '@utils/temp.util';
+import { localProcessTimeoutMs } from '@utils/timeout.util';
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
-const OCR_TIMEOUT_MS = 2_500;
 
 const IMAGE_FORMATS: Array<{ extension: string; matches: (data: Buffer) => boolean }> = [
   { extension: 'png', matches: data => data.length >= 8 && data.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) },
@@ -69,7 +69,7 @@ class OcrServiceImpl implements IOcrService {
       const timeout = setTimeout(() => {
         timedOut = true;
         processHandle.kill();
-      }, OCR_TIMEOUT_MS);
+      }, localProcessTimeoutMs());
       timeout.unref?.();
 
       const [text, stderr, exitCode] = await Promise.all([

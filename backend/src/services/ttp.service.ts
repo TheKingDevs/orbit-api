@@ -6,12 +6,12 @@ import { ITtpService } from '@interface/ITtp';
 import { TtpDTO } from '@apptypes/ttp.type';
 import { FontUtil } from '@utils/font.util';
 import { getTempDir } from '@utils/temp.util';
+import { localProcessTimeoutMs } from '@utils/timeout.util';
 
 const WIDTH = 512;
 const HEIGHT = 512;
 const PADDING = 40;
 const MAX_LINES = 8;
-const FFMPEG_TIMEOUT_MS = 2_500;
 
 interface TextLayout {
   fontSize: number;
@@ -382,7 +382,7 @@ class TtpServiceImpl implements ITtpService {
     const timeout = setTimeout(() => {
       timedOut = true;
       proc.kill();
-    }, FFMPEG_TIMEOUT_MS);
+    }, localProcessTimeoutMs());
     timeout.unref?.();
 
     const stderr = await new Response(proc.stderr).text();
@@ -390,7 +390,7 @@ class TtpServiceImpl implements ITtpService {
     clearTimeout(timeout);
 
     if (timedOut) {
-      throw new DangerError('A geração do GIF excedeu o limite de 2,5 segundos.', 504);
+      throw new DangerError('A geração do GIF excedeu o tempo limite.', 504);
     }
 
     if (exitCode !== 0) {

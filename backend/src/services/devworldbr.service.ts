@@ -5,10 +5,10 @@ import { Logger } from '@utils/logger';
 import { SdkResponse } from '@apptypes/devworldbr.type';
 import { validateSafeUrl, TrustedPlatform } from '@utils/urlSecurity.util';
 import { firstSuccessful } from '@utils/async.util';
+import { providerTimeoutMs } from '@utils/timeout.util';
 
 const PROMO_KEYS = ['criador', 'whatsapp'] as const;
 const DEVWORLD_API_BASE = (process.env.DEVWORLDBR_API_BASE || 'https://api.devworldbr.site/api').replace(/\/+$/, '');
-const PROVIDER_TIMEOUT_MS = 2_200;
 const MAX_CONCURRENT_PROVIDER_CALLS = 6;
 let activeProviderCalls = 0;
 
@@ -84,7 +84,7 @@ async function execute(label: string, operation: () => Promise<unknown>): Promis
     const response = await Promise.race([
       operationPromise,
       new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(() => reject(deadlineError), PROVIDER_TIMEOUT_MS);
+        timeoutId = setTimeout(() => reject(deadlineError), providerTimeoutMs());
       })
     ]);
     return sanitizeResponse(response);
@@ -92,7 +92,7 @@ async function execute(label: string, operation: () => Promise<unknown>): Promis
     if (error instanceof InvalidParameterError) throw error;
     if (error === deadlineError) {
       Logger.warning(`Tempo limite excedido em ${label}.`, 'DevWorldBR');
-      throw new DangerError('O serviço externo demorou mais que o limite de 2,2 segundos.', 504);
+      throw new DangerError('O serviço externo excedeu o tempo limite.', 504);
     }
 
     Logger.error(`Falha em ${label}.`, 'DevWorldBR');
@@ -162,7 +162,7 @@ class DevWorldBRService implements IDevWorldBRService {
       const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(link)}`;
       const res = await fetch(apiUrl, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
-        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS)
+        signal: AbortSignal.timeout(providerTimeoutMs())
       });
       const json = (await res.json()) as any;
       if (json.code === 0 && json.data) {

@@ -3,10 +3,10 @@ import { DangerError } from '@errors/index';
 import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { getTempDir } from '@utils/temp.util';
+import { localProcessTimeoutMs } from '@utils/timeout.util';
 
 const MAX_INPUT_BYTES = 20 * 1024 * 1024;
 const MAX_OUTPUT_BYTES = 20 * 1024 * 1024;
-const FFMPEG_TIMEOUT_MS = 2_500;
 
 export async function toGifRoute(req: Request, url: URL): Promise<Response> {
   authMiddleware(req);
@@ -39,7 +39,7 @@ export async function toGifRoute(req: Request, url: URL): Promise<Response> {
     const timeout = setTimeout(() => {
       timedOut = true;
       proc.kill();
-    }, FFMPEG_TIMEOUT_MS);
+    }, localProcessTimeoutMs());
     timeout.unref?.();
     const [, exitCode] = await Promise.all([
       new Response(proc.stderr).text(),
@@ -47,7 +47,7 @@ export async function toGifRoute(req: Request, url: URL): Promise<Response> {
     ]);
     clearTimeout(timeout);
 
-    if (timedOut) throw new DangerError('A conversão excedeu o limite de 2,5 segundos.', 504);
+    if (timedOut) throw new DangerError('A conversão excedeu o tempo limite.', 504);
     if (exitCode !== 0) throw new DangerError('Não foi possível converter a imagem para GIF.', 400);
 
     const out = Bun.file(`${dir}/out.gif`);

@@ -4,9 +4,9 @@ import { DangerError, InvalidParameterError } from '@errors/index';
 import { CanvasEffect, ImageFormat, MirrorDirection } from '@apptypes/canvasEffects.type';
 import { getTempDir } from '@utils/temp.util';
 import { fetchSafeUrl, validateSafeUrl } from '@utils/urlSecurity.util';
+import { localProcessTimeoutMs, mediaFetchTimeoutMs } from '@utils/timeout.util';
 
 const MAX_INPUT_BYTES = 20 * 1024 * 1024;
-const FFMPEG_TIMEOUT_MS = 2_500;
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 const CIRCLE_ALPHA_FILTER = `geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lte((X-W/2)*(X-W/2)+(Y-H/2)*(Y-H/2),(W/2)*(W/2)),255,0)'`;
 
@@ -140,7 +140,7 @@ class FfmpegServiceImpl {
       const timeout = setTimeout(() => {
         timedOut = true;
         proc.kill();
-      }, FFMPEG_TIMEOUT_MS);
+      }, localProcessTimeoutMs());
       timeout.unref?.();
 
       const stderr = await new Response(proc.stderr).text();
@@ -148,7 +148,7 @@ class FfmpegServiceImpl {
       clearTimeout(timeout);
 
       if (timedOut) {
-        throw new DangerError('O processamento da imagem excedeu o limite de 2,5 segundos.', 504);
+        throw new DangerError('O processamento da imagem excedeu o tempo limite.', 504);
       }
 
       if (exitCode !== 0) {
@@ -242,7 +242,7 @@ class FfmpegServiceImpl {
           'User-Agent': USER_AGENT,
           'Accept': 'image/*,*/*;q=0.8'
         },
-        signal: AbortSignal.timeout(2_200)
+        signal: AbortSignal.timeout(mediaFetchTimeoutMs())
       });
     } catch (error: any) {
       throw new DangerError(`Falha ao baixar a imagem: ${error.message}`, 502);

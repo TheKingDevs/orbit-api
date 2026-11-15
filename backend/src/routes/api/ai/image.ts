@@ -2,21 +2,21 @@ import { authMiddleware } from '@middlewares/authMiddleware';
 import { DangerError, InvalidParameterError } from '@errors/index';
 import { jsonResponse } from '@utils/request.util';
 import { APP_VERSION } from '@utils/appVersion';
+import { hordeTimeoutMs } from '@utils/timeout.util';
 
 const HORDE_API = 'https://aihorde.net/api/v2';
-const HORDE_TIMEOUT_MS = 2_200;
 
 async function fetchHorde(url: string, init?: RequestInit): Promise<Response> {
   try {
     return await fetch(url, {
       ...init,
-      signal: AbortSignal.timeout(HORDE_TIMEOUT_MS)
+      signal: AbortSignal.timeout(hordeTimeoutMs())
     });
   } catch (error) {
     const timedOut = error instanceof Error && error.name === 'TimeoutError';
     throw new DangerError(
       timedOut
-        ? 'O serviço de geração de imagem excedeu o limite de 2,2 segundos.'
+        ? 'O serviço de geração de imagem excedeu o tempo limite.'
         : 'Não foi possível consultar o serviço de geração de imagem.',
       timedOut ? 504 : 502
     );

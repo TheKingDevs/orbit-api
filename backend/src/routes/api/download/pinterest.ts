@@ -4,6 +4,7 @@ import { ValidatorUtil } from '@utils/validator.util';
 import { authMiddleware } from '@middlewares/authMiddleware';
 import { InvalidParameterError } from '@errors/index';
 import { jsonResponse } from '@utils/request.util';
+import { resolvePublicBaseUrl } from '@utils/publicBaseUrl.util';
 
 const downloaderService = new DownloaderService();
 
@@ -34,7 +35,7 @@ export async function downloadPinterestRoute(req: Request, url: URL): Promise<Re
   });
 
   const result = await downloaderService.processDownload(dto, {
-    baseUrl: process.env.PUBLIC_BASE_URL || url.origin
+    baseUrl: resolvePublicBaseUrl(req, url)
   });
 
   return Response.json(result, { status: 200 });

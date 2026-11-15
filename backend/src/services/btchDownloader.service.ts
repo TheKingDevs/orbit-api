@@ -4,11 +4,11 @@ import type { BtchDownloadPlatform } from '@apptypes/download.type';
 import { Logger } from '@utils/logger';
 import { validateSafeUrl } from '@utils/urlSecurity.util';
 import type { TrustedPlatform } from '@utils/urlSecurity.util';
+import { providerTimeoutMs } from '@utils/timeout.util';
 
 type DownloadMethod = (url: string) => Promise<unknown>;
 type DownloaderName = 'spotify' | 'threads' | 'gdrive' | 'capcut' | 'twitter';
 type DownloaderDefinition = { label: string; platform: TrustedPlatform; method: DownloaderName };
-const PROVIDER_TIMEOUT_MS = 2_200;
 const MAX_CONCURRENT_CALLS = 4;
 let activeCalls = 0;
 
@@ -48,6 +48,23 @@ function sanitizeResponse(response: unknown): Record<string, unknown> {
   return clean;
 }
 
+function providerFailure(response: unknown): string | undefined {
+  if (!response || typeof response !== 'object' || Array.isArray(response)) return undefined;
+
+  const result = response as Record<string, unknown>;
+  if (result.status === false) return 'status';
+
+  const nested = result.result;
+  if (!nested || typeof nested !== 'object' || Array.isArray(nested)) return undefined;
+
+  const detail = nested as Record<string, unknown>;
+  if (detail.success === false) return 'success';
+  if (detail.status === 'error') return 'error';
+  if (typeof detail.status === 'number' && detail.status >= 400) return 'http';
+
+  return undefined;
+}
+
 class BtchDownloaderService implements IBtchDownloaderService {
   async download(
     platform: BtchDownloadPlatform,
@@ -77,23 +94,20 @@ class BtchDownloaderService implements IBtchDownloaderService {
         response = await Promise.race([
           operation,
           new Promise<never>((_, reject) => {
-            timeoutId = setTimeout(() => reject(timeoutError), PROVIDER_TIMEOUT_MS);
+            timeoutId = setTimeout(() => reject(timeoutError), providerTimeoutMs());
           })
         ]);
       } catch (error) {
         if (error === timeoutError) {
-          throw new DangerError('O serviço externo excedeu o limite de 2,2 segundos.', 504);
+          throw new DangerError('O serviço externo excedeu o tempo limite.', 504);
         }
         throw error;
       } finally {
         if (timeoutId) clearTimeout(timeoutId);
       }
 
-      if (response && typeof response === 'object' && !Array.isArray(response)) {
-        const result = response as Record<string, unknown>;
-        if (result.status === false) {
-          throw new DangerError(`Não foi possível obter a mídia de ${downloader.label}.`, 502);
-        }
+      if (providerFailure(response)) {
+        throw new DangerError(`Não foi possível obter a mídia de ${downloader.label}.`, 502);
       }
 
       return sanitizeResponse(response);

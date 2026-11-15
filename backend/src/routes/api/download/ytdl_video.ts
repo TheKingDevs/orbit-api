@@ -1,6 +1,7 @@
 import { DownloaderService } from '@services/downloader.service';
 import { ValidatorUtil } from '@utils/validator.util';
 import { authMiddleware } from '@middlewares/authMiddleware';
+import { resolvePublicBaseUrl } from '@utils/publicBaseUrl.util';
 
 const downloaderService = new DownloaderService();
 
@@ -16,7 +17,7 @@ export async function downloadYtdlVideoRoute(req: Request, url: URL): Promise<Re
   });
 
   const result = await downloaderService.processDownload(dto, {
-    baseUrl: process.env.PUBLIC_BASE_URL || url.origin
+    baseUrl: resolvePublicBaseUrl(req, url)
   });
 
   return Response.json(result, { status: 200 });
