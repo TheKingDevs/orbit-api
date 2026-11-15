@@ -8,6 +8,7 @@ import { Logger } from '@utils/logger';
 import { fetchSafeUrl } from '@utils/urlSecurity.util';
 
 type FontWeight = 'normal' | 'bold';
+const REMOTE_IMAGE_TIMEOUT_MS = 1_200;
 
 export class CanvasService implements ICanvasService {
 
@@ -108,10 +109,17 @@ export class CanvasService implements ICanvasService {
   }
 
   private static async drawAvatar(ctx: any, dto: CanvasDTO, ringColor: string): Promise<void> {
-    const avatarUrl = dto.avatarUrl || 'https://api.dicebear.com/7.x/bottts/png?seed=' + encodeURIComponent(dto.username);
+    let avatarImage;
 
-    try {
-      const avatarImage = await this.loadRemoteImage(avatarUrl);
+    if (dto.avatarUrl) {
+      try {
+        avatarImage = await this.loadRemoteImage(dto.avatarUrl);
+      } catch {
+        Logger.warning('Falha ao carregar avatar informado.', 'CanvasService');
+      }
+    }
+
+    if (avatarImage) {
       ctx.save();
       ctx.beginPath();
       ctx.arc(140, 150, 70, 0, Math.PI * 2, true);
@@ -119,21 +127,32 @@ export class CanvasService implements ICanvasService {
       ctx.clip();
       ctx.drawImage(avatarImage, 70, 80, 140, 140);
       ctx.restore();
-
+    } else {
+      const initial = Array.from(dto.username.trim())[0]?.toLocaleUpperCase() || '?';
+      ctx.save();
       ctx.beginPath();
-      ctx.arc(140, 150, 72, 0, Math.PI * 2, true);
-      ctx.strokeStyle = ringColor;
-      ctx.lineWidth = 4;
-      ctx.stroke();
-    } catch (e) {
-      Logger.warning('Falha ao carregar avatar.', 'CanvasService');
+      ctx.arc(140, 150, 70, 0, Math.PI * 2);
+      ctx.fillStyle = '#334155';
+      ctx.fill();
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 56px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(initial, 140, 150, 110);
+      ctx.restore();
     }
+
+    ctx.beginPath();
+    ctx.arc(140, 150, 72, 0, Math.PI * 2, true);
+    ctx.strokeStyle = ringColor;
+    ctx.lineWidth = 4;
+    ctx.stroke();
   }
 
   private static async loadRemoteImage(url: string) {
     const response = await fetchSafeUrl(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; OrbitAPI/2.0)' },
-      signal: AbortSignal.timeout(8_000)
+      signal: AbortSignal.timeout(REMOTE_IMAGE_TIMEOUT_MS)
     });
 
     if (!response.ok) throw new Error(`Falha ao carregar imagem (HTTP ${response.status}).`);

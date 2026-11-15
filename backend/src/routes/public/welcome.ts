@@ -6,6 +6,7 @@ export async function publicWelcomeRoute(): Promise<Response> {
     status: 'online',
     version: APP_VERSION,
     authentication: 'Send your API key in the x-apikey or x-api-key request header.',
+    storage_authentication: 'URLs under /storage/ also require the same authentication header.',
     endpoints: {
       balance: '/api/user/balance',
       instagram: '/api/download/instagram?url=...&type=video',

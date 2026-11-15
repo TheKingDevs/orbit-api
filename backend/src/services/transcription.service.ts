@@ -7,6 +7,10 @@ import { Logger } from '@utils/logger';
 import { getTempDir } from '@utils/temp.util';
 
 const MAX_DURATION_SECONDS = 10 * 60;
+const TRANSCRIPTION_TIMEOUT_MS = 2_500;
+const TRANSCRIPTION_PROCESS_TIMEOUT_MS = 2_200;
+const MAX_ACTIVE_TRANSCRIPTIONS = 2;
+let activeTranscriptions = 0;
 const MODEL_BASE_URL = 'https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny/resolve/main';
 const MODEL_FILES = [
   'tiny-encoder.int8.onnx',
@@ -46,6 +50,32 @@ class TranscriptionServiceImpl implements ITranscriptionService {
   constructor(private readonly engine: ITranscriptionEngine = new SherpaWhisperEngine()) {}
 
   async transcribe(input: TranscriptionInput, language: TranscribeLanguage): Promise<TranscriptionResult> {
+    if (activeTranscriptions >= MAX_ACTIVE_TRANSCRIPTIONS) {
+      throw new DangerError('O serviço de transcrição está ocupado. Tente novamente em instantes.', 503);
+    }
+
+    activeTranscriptions += 1;
+    const operation = this.transcribeInternal(input, language);
+    const releaseSlot = () => {
+      activeTranscriptions = Math.max(0, activeTranscriptions - 1);
+    };
+    void operation.then(releaseSlot, releaseSlot);
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeoutError = new DangerError('A transcrição excedeu o limite de 2,5 segundos.', 504);
+    try {
+      return await Promise.race([
+        operation,
+        new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => reject(timeoutError), TRANSCRIPTION_TIMEOUT_MS);
+        })
+      ]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  }
+
+  private async transcribeInternal(input: TranscriptionInput, language: TranscribeLanguage): Promise<TranscriptionResult> {
     const data = input.data instanceof Uint8Array
       ? input.data
       : new Uint8Array(input.data);
@@ -132,12 +162,18 @@ class TranscriptionServiceImpl implements ITranscriptionService {
       }
     );
 
-    const timeout = setTimeout(() => proc.kill(), 15_000);
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      proc.kill();
+    }, TRANSCRIPTION_PROCESS_TIMEOUT_MS);
     timeout.unref?.();
 
     const output = await new Response(proc.stdout).text();
     const exitCode = await proc.exited;
     clearTimeout(timeout);
+
+    if (timedOut) throw new DangerError('A análise do áudio excedeu o limite de 2,2 segundos.', 504);
 
     if (exitCode !== 0) return;
 
@@ -173,12 +209,18 @@ class TranscriptionServiceImpl implements ITranscriptionService {
       }
     );
 
-    const timeout = setTimeout(() => proc.kill(), 120_000);
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      proc.kill();
+    }, TRANSCRIPTION_PROCESS_TIMEOUT_MS);
     timeout.unref?.();
 
     const stderr = await new Response(proc.stderr).text();
     const exitCode = await proc.exited;
     clearTimeout(timeout);
+
+    if (timedOut) throw new DangerError('A conversão do áudio excedeu o limite de 2,2 segundos.', 504);
 
     if (exitCode !== 0) {
       throw new InvalidParameterError(
@@ -282,7 +324,12 @@ class SherpaWhisperEngine implements ITranscriptionEngine {
   private getRecognizer(): Promise<any> {
     if (!this.recognizerPromise) {
       this.recognizerPromise = (async () => {
-        const sherpa: any = await import('sherpa-onnx-node');
+        let sherpa: any;
+        try {
+          sherpa = await import('sherpa-onnx-node');
+        } catch {
+          throw new DangerError('O motor local de transcrição não está disponível neste ambiente.', 503);
+        }
         const modelDirectory = await this.ensureModel();
         const recognizer = await sherpa.OfflineRecognizer.createAsync(
           this.buildConfig(modelDirectory, '')

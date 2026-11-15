@@ -11,6 +11,7 @@ const WIDTH = 512;
 const HEIGHT = 512;
 const PADDING = 40;
 const MAX_LINES = 8;
+const FFMPEG_TIMEOUT_MS = 2_500;
 
 interface TextLayout {
   fontSize: number;
@@ -377,12 +378,20 @@ class TtpServiceImpl implements ITtpService {
       }
     );
 
-    const timeout = setTimeout(() => proc.kill(), 60_000);
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      proc.kill();
+    }, FFMPEG_TIMEOUT_MS);
     timeout.unref?.();
 
     const stderr = await new Response(proc.stderr).text();
     const exitCode = await proc.exited;
     clearTimeout(timeout);
+
+    if (timedOut) {
+      throw new DangerError('A geração do GIF excedeu o limite de 2,5 segundos.', 504);
+    }
 
     if (exitCode !== 0) {
       throw new DangerError(`Falha ao gerar o GIF animado: ${stderr.trim() || 'ffmpeg falhou.'}`);

@@ -43,6 +43,13 @@ Use o serviço de domínio existente em vez de colocar regra de negócio diretam
 - Não faça deploy, push, merge, publicação, rotação de credenciais ou chamada que altere serviço externo sem autorização explícita.
 - Não instale dependências nem ferramentas se a tarefa puder ser concluída com as disponíveis. Ao instalar, evite scripts e alterações amplas desnecessárias.
 
+## Gate antes de publicar
+
+- Antes de `git push`, deploy, release, merge que disponibilize mudanças ou outra publicação, execute e confirme as checagens pertinentes às aplicações alteradas, conforme `.agents/workrules/validation-and-data.md` e os `AGENTS.md` locais.
+- Inclua sempre `git diff --check`; para backend execute build/typecheck disponível e testes direcionados; para frontend execute lint, typecheck e build. Mudanças em mais de uma aplicação exigem as checagens de cada uma.
+- Não publique enquanto alguma checagem aplicável estiver falhando ou não puder ser executada. Corrija a falha e repita as checagens; se o ambiente impedir sua execução, explique o bloqueio e peça orientação.
+- Se houver novas alterações após a validação, repita as checagens pertinentes antes de publicar.
+
 ## Ao concluir
 
 - Revise o diff completo e confirme que não há segredos, arquivos de ambiente, dados, fixtures pessoais ou alterações não relacionadas.

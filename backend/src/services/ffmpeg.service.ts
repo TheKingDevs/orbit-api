@@ -6,6 +6,7 @@ import { getTempDir } from '@utils/temp.util';
 import { fetchSafeUrl, validateSafeUrl } from '@utils/urlSecurity.util';
 
 const MAX_INPUT_BYTES = 20 * 1024 * 1024;
+const FFMPEG_TIMEOUT_MS = 2_500;
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 const CIRCLE_ALPHA_FILTER = `geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lte((X-W/2)*(X-W/2)+(Y-H/2)*(Y-H/2),(W/2)*(W/2)),255,0)'`;
 
@@ -135,12 +136,20 @@ class FfmpegServiceImpl {
         stderr: 'pipe'
       });
 
-      const timeout = setTimeout(() => proc.kill(), 60_000);
+      let timedOut = false;
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        proc.kill();
+      }, FFMPEG_TIMEOUT_MS);
       timeout.unref?.();
 
       const stderr = await new Response(proc.stderr).text();
       const exitCode = await proc.exited;
       clearTimeout(timeout);
+
+      if (timedOut) {
+        throw new DangerError('O processamento da imagem excedeu o limite de 2,5 segundos.', 504);
+      }
 
       if (exitCode !== 0) {
         throw new InvalidParameterError(
@@ -234,7 +243,7 @@ class FfmpegServiceImpl {
           'User-Agent': USER_AGENT,
           'Accept': 'image/*,*/*;q=0.8'
         },
-        signal: AbortSignal.timeout(30_000)
+        signal: AbortSignal.timeout(2_200)
       });
     } catch (error: any) {
       throw new DangerError(`Falha ao baixar a imagem: ${error.message}`, 502);

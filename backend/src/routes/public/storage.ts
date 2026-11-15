@@ -1,4 +1,5 @@
 import { DangerError, NotFoundError } from '@errors/index';
+import { authMiddleware } from '@middlewares/authMiddleware';
 import { storageService } from '@services/storage.service';
 import { fetchSafeUrl } from '@utils/urlSecurity.util';
 
@@ -26,6 +27,10 @@ function parseRange(range: string, size: number): { start: number; end: number }
 }
 
 export async function storageRoute(req: Request, url: URL): Promise<Response> {
+  // URLs de mídia podem conter conteúdo privado do usuário. Exija autenticação
+  // antes de revelar se o arquivo existe ou de acessar qualquer origem remota.
+  authMiddleware(req, undefined, false);
+
   let filename: string;
 
   try {
@@ -48,6 +53,10 @@ export async function storageRoute(req: Request, url: URL): Promise<Response> {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         Accept: '*/*',
+        ...(remote.provider === 'tikwm' ? {
+          Referer: 'https://www.tikwm.com/',
+          Origin: 'https://www.tikwm.com'
+        } : {}),
         ...(range ? { Range: range } : {})
       }
     }).catch(() => null);
@@ -60,7 +69,7 @@ export async function storageRoute(req: Request, url: URL): Promise<Response> {
     const headers = new Headers({
       'Content-Type': upstream.headers.get('content-type') || storageService.getContentType(filename),
       'Content-Disposition': `inline; filename="${filename}"`,
-      'Cache-Control': 'private, max-age=300',
+      'Cache-Control': 'private, no-store',
       'Accept-Ranges': upstream.headers.get('accept-ranges') || 'bytes'
     });
     for (const name of ['content-length', 'content-range', 'etag', 'last-modified']) {
@@ -85,7 +94,7 @@ export async function storageRoute(req: Request, url: URL): Promise<Response> {
   const headers: Record<string, string> = {
     'Content-Type': contentType,
     'Accept-Ranges': 'bytes',
-    'Cache-Control': 'public, max-age=1800',
+    'Cache-Control': 'private, no-store',
     'Content-Disposition': `inline; filename="${filename}"`
   };
 

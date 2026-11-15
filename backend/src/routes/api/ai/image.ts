@@ -4,6 +4,24 @@ import { jsonResponse } from '@utils/request.util';
 import { APP_VERSION } from '@utils/appVersion';
 
 const HORDE_API = 'https://aihorde.net/api/v2';
+const HORDE_TIMEOUT_MS = 2_200;
+
+async function fetchHorde(url: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(HORDE_TIMEOUT_MS)
+    });
+  } catch (error) {
+    const timedOut = error instanceof Error && error.name === 'TimeoutError';
+    throw new DangerError(
+      timedOut
+        ? 'O serviço de geração de imagem excedeu o limite de 2,2 segundos.'
+        : 'Não foi possível consultar o serviço de geração de imagem.',
+      timedOut ? 504 : 502
+    );
+  }
+}
 
 export async function imageGenerationRoute(req: Request): Promise<Response> {
   if (req.method !== 'POST') throw new DangerError('Método não permitido. Use POST.', 405);
@@ -43,7 +61,7 @@ export async function imageGenerationRoute(req: Request): Promise<Response> {
   if (body.r2 !== undefined) payload.r2 = body.r2;
   if (body.webhook !== undefined) payload.webhook = body.webhook;
 
-  const response = await fetch(`${HORDE_API}/generate/async`, {
+  const response = await fetchHorde(`${HORDE_API}/generate/async`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -54,6 +72,9 @@ export async function imageGenerationRoute(req: Request): Promise<Response> {
   });
 
   const data = await response.json().catch(() => null);
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new DangerError('O serviço de geração de imagem retornou uma resposta inválida.', 502);
+  }
   if (!response.ok) {
     const message = typeof data?.message === 'string' ? data.message : 'Falha ao solicitar geração ao AI Horde.';
     throw new DangerError(message, response.status >= 500 ? 502 : response.status);
@@ -67,13 +88,16 @@ export async function imageGenerationStatusRoute(req: Request, url: URL): Promis
   const id = url.searchParams.get('id')?.trim();
   if (!id || !/^[a-zA-Z0-9-]+$/.test(id)) throw new InvalidParameterError('Informe um id de geração válido.');
 
-  const response = await fetch(`${HORDE_API}/generate/status/${encodeURIComponent(id)}`, {
+  const response = await fetchHorde(`${HORDE_API}/generate/status/${encodeURIComponent(id)}`, {
     headers: {
       apikey: process.env.AIHORDE_API_KEY || '0000000000',
       'Client-Agent': `Orbit-API:${APP_VERSION}:github.com/orbit-api`
     }
   });
   const data = await response.json().catch(() => null);
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new DangerError('O serviço de geração de imagem retornou uma resposta inválida.', 502);
+  }
   if (!response.ok) {
     const message = typeof data?.message === 'string' ? data.message : 'Falha ao consultar o AI Horde.';
     throw new DangerError(message, response.status >= 500 ? 502 : response.status);

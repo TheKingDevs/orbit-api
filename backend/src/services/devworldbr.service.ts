@@ -7,6 +7,9 @@ import { validateSafeUrl, TrustedPlatform } from '@utils/urlSecurity.util';
 
 const PROMO_KEYS = ['criador', 'whatsapp'] as const;
 const DEVWORLD_API_BASE = (process.env.DEVWORLDBR_API_BASE || 'https://api.devworldbr.site/api').replace(/\/+$/, '');
+const PROVIDER_TIMEOUT_MS = 2_200;
+const MAX_CONCURRENT_PROVIDER_CALLS = 6;
+let activeProviderCalls = 0;
 
 function sanitizeResponse(response: unknown): SdkResponse {
   if (!response || typeof response !== 'object' || Array.isArray(response)) {
@@ -62,15 +65,39 @@ function requireUrl(value: string | undefined | null, field: string, platform?: 
 }
 
 async function execute(label: string, operation: () => Promise<unknown>): Promise<SdkResponse> {
+  if (activeProviderCalls >= MAX_CONCURRENT_PROVIDER_CALLS) {
+    throw new DangerError('O serviço está ocupado. Tente novamente em instantes.', 503);
+  }
+
+  activeProviderCalls += 1;
+  const operationPromise = Promise.resolve().then(operation);
+  const releaseSlot = () => {
+    activeProviderCalls = Math.max(0, activeProviderCalls - 1);
+  };
+  void operationPromise.then(releaseSlot, releaseSlot);
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const deadlineError = new Error('provider deadline');
   try {
     Logger.info(`Executando ${label} via devworldbr-sdk`, 'DevWorldBR');
-    const response = await operation();
+    const response = await Promise.race([
+      operationPromise,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(deadlineError), PROVIDER_TIMEOUT_MS);
+      })
+    ]);
     return sanitizeResponse(response);
   } catch (error: any) {
     if (error instanceof InvalidParameterError) throw error;
+    if (error === deadlineError) {
+      Logger.warning(`Tempo limite excedido em ${label}.`, 'DevWorldBR');
+      throw new DangerError('O serviço externo demorou mais que o limite de 2,2 segundos.', 504);
+    }
 
-    Logger.error(`Falha em ${label}: ${error.message}`, 'DevWorldBR');
+    Logger.error(`Falha em ${label}.`, 'DevWorldBR');
     throw new DangerError(`Falha ao executar ${label}: Ocorreu uma falha no serviço.`, 502);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
 }
 
@@ -122,12 +149,13 @@ class DevWorldBRService implements IDevWorldBRService {
       return normalizeTikTokImages(response);
     } catch (err: any) {
       if (err instanceof InvalidParameterError) throw err;
+      if (err instanceof DangerError && err.statusCode === 504) throw err;
 
       try {
         const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(link)}`;
         const res = await fetch(apiUrl, {
           headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
-          signal: AbortSignal.timeout(25_000)
+          signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS)
         });
         const json = (await res.json()) as any;
         if (json.code === 0 && json.data) {

@@ -41,7 +41,11 @@ class BaseDownloaderService implements IDownloaderService {
 
           const mediaType: MediaType = type === 'audio' ? 'audio' : 'video';
           const sourceUrl = devWorldBRService.youtubeMediaSource(videoUrl, mediaType);
-          const downloaded = await this.saveYouTubeMedia(sourceUrl, mediaType, mediaType === 'audio' ? 'mp3' : 'mp4');
+          const downloaded = await storageService.registerRemote(
+            sourceUrl,
+            mediaType,
+            mediaType === 'audio' ? 'mp3' : 'mp4'
+          );
           const title = item?.titulo || item?.title || name.trim();
           const thumbnail = item?.imagen || item?.thumbnail;
           const author = item?.autor?.nome || item?.canal || item?.author || 'YouTube';
@@ -60,9 +64,12 @@ class BaseDownloaderService implements IDownloaderService {
         if (platform === 'tiktok') {
           const tikwmMedia = await this.resolveTikTokMedia(url || '', type);
           if (!tikwmMedia) throw new WarningError('Não foi possível baixar este vídeo do TikTok agora. Tente novamente mais tarde ou use outro link público.', 502);
-          stored = await storageService.saveFromUrl(tikwmMedia.directUrl, tikwmMedia.mediaType, tikwmMedia.suggestedExt, {
-            Referer: 'https://www.tikwm.com/', Origin: 'https://www.tikwm.com'
-          });
+          stored = await storageService.registerRemote(
+            tikwmMedia.directUrl,
+            tikwmMedia.mediaType,
+            tikwmMedia.suggestedExt,
+            'tikwm'
+          );
           metadata = tikwmMedia.metadata;
 
           return {
@@ -85,7 +92,7 @@ class BaseDownloaderService implements IDownloaderService {
           : undefined;
         const resolved = pinterestMedia ?? await this.resolveWithDevWorld(url || '', type, platform);
         const storedMedia = platform === 'youtube'
-          ? await this.saveYouTubeMedia(resolved.directUrl, resolved.mediaType, resolved.suggestedExt || (resolved.mediaType === 'audio' ? 'mp3' : 'mp4'))
+          ? await storageService.registerRemote(resolved.directUrl, resolved.mediaType, resolved.suggestedExt || (resolved.mediaType === 'audio' ? 'mp3' : 'mp4'))
           : await storageService.registerRemote(resolved.directUrl, resolved.mediaType, resolved.suggestedExt);
         return {
           success: true,
@@ -175,7 +182,7 @@ class BaseDownloaderService implements IDownloaderService {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
         },
-        signal: AbortSignal.timeout(8_000)
+        signal: AbortSignal.timeout(2_200)
       });
 
       const html = await res.text();
@@ -229,9 +236,6 @@ class BaseDownloaderService implements IDownloaderService {
 
   private async resolveTikTokMedia(url: string, type: string): Promise<ResolvedMedia | undefined> {
     try {
-      if (/^https?:\/\/(?:vm|vt)\.tiktok\.com\//i.test(url)) {
-        await new Promise(resolve => setTimeout(resolve, 3_000));
-      }
       const res = await fetch('https://www.tikwm.com/api/', {
         method: 'POST',
         headers: {
@@ -241,7 +245,7 @@ class BaseDownloaderService implements IDownloaderService {
           'Origin': 'https://www.tikwm.com'
         },
         body: new URLSearchParams({ url, hd: '1' }),
-        signal: AbortSignal.timeout(8_000)
+        signal: AbortSignal.timeout(2_200)
       });
       const json = (await res.json()) as any;
       if (json.code === 0 && json.data) {
@@ -276,7 +280,7 @@ class BaseDownloaderService implements IDownloaderService {
         }
       }
     } catch (err: any) {
-      Logger.warning(`Fallback TikWM falhou (${err.message})`, 'TikTokDownloader');
+      Logger.warning('Fallback TikWM falhou.', 'TikTokDownloader');
     }
     return undefined;
   }
@@ -284,7 +288,7 @@ class BaseDownloaderService implements IDownloaderService {
   private async fetchYouTubeMetadata(url: string): Promise<MediaMetadata> {
     try {
       const response = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`, {
-        signal: AbortSignal.timeout(10_000)
+        signal: AbortSignal.timeout(1_200)
       });
       if (!response.ok) return {};
       const data = await response.json() as any;
@@ -296,22 +300,6 @@ class BaseDownloaderService implements IDownloaderService {
     } catch {
       return {};
     }
-  }
-
-  private async saveYouTubeMedia(sourceUrl: string, mediaType: MediaType, suggestedExt: string): Promise<StoredMedia> {
-    let lastError: unknown;
-
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      try {
-        return await storageService.saveFromUrl(sourceUrl, mediaType, suggestedExt, {}, 300_000);
-      } catch (error) {
-        lastError = error;
-        if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 750 * (attempt + 1)));
-      }
-    }
-
-    Logger.warning(`Falha ao baixar mídia do YouTube após 3 tentativas: ${lastError instanceof Error ? lastError.message : String(lastError)}`, 'YouTubeDownloader');
-    throw new WarningError('Não foi possível baixar a mídia do YouTube. Tente novamente em instantes.', 502);
   }
 
   private async resolveWithDevWorld(url: string, type: string, platform: string): Promise<ResolvedMedia> {

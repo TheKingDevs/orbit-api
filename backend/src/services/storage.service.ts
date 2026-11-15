@@ -16,6 +16,7 @@ export interface StoredMedia {
 export interface RemoteMediaReference {
   url: string;
   mediaType: MediaType;
+  provider?: 'tikwm';
 }
 
 const STORAGE_TTL_MS = 30 * 60 * 1000;
@@ -87,14 +88,19 @@ class StorageService {
     return CONTENT_TYPES[extension] || 'application/octet-stream';
   }
 
-  async registerRemote(sourceUrl: string, mediaType: MediaType, suggestedExt?: string): Promise<StoredMedia> {
+  async registerRemote(
+    sourceUrl: string,
+    mediaType: MediaType,
+    suggestedExt?: string,
+    provider?: RemoteMediaReference['provider']
+  ): Promise<StoredMedia> {
     this.ensureDirectory();
     const safeUrl = validateSafeUrl(sourceUrl);
     const extension = this.pickExtension(suggestedExt, '', safeUrl, mediaType);
     const filename = `${this.createId()}.${extension}`;
     const filePath = join(this.directory, filename);
     const referencePath = `${filePath}.ref`;
-    await Bun.write(referencePath, JSON.stringify({ url: safeUrl, mediaType }));
+    await Bun.write(referencePath, JSON.stringify({ url: safeUrl, mediaType, ...(provider ? { provider } : {}) }));
     this.scheduleCleanup(referencePath);
 
     return { filename, path: filePath, extension, mediaType };
@@ -112,7 +118,8 @@ class StorageService {
       if (typeof reference.url !== 'string') return undefined;
       const mediaType = reference.mediaType;
       if (!mediaType || !['video', 'audio', 'image', 'gif'].includes(mediaType)) return undefined;
-      return { url: validateSafeUrl(reference.url), mediaType };
+      const provider = reference.provider === 'tikwm' ? 'tikwm' : undefined;
+      return { url: validateSafeUrl(reference.url), mediaType, ...(provider ? { provider } : {}) };
     } catch {
       return undefined;
     }
