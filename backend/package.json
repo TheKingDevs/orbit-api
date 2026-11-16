@@ -11,7 +11,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@napi-rs/canvas": "^0.1.60",
+    "@napi-rs/canvas": "^1.1.1",
     "btch-downloader": "6.4.0",
     "devworldbr-sdk": "^1.0.5",
     "html-to-image": "^1.11.13",
