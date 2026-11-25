@@ -1,7 +1,12 @@
+import { InvalidParameterError } from '@errors/index';
 import { sessionAuthMiddleware } from '@middlewares/authMiddleware';
 import { BASIC_MONTHLY_LIMIT, db, FREE_DAILY_LIMIT } from '@utils/db.util';
 
 export async function managerKeysRoute(req: Request): Promise<Response> {
+  if (req.method !== 'GET') {
+    throw new InvalidParameterError('Método não suportado. Use GET.');
+  }
+
   const adminUser = sessionAuthMiddleware(req, ['admin', 'owner']);
 
   const keys = db.getAllUsers().map(u => ({
@@ -27,5 +32,5 @@ export async function managerKeysRoute(req: Request): Promise<Response> {
     success: true,
     keys,
     requestedBy: adminUser.email
-  });
+  }, { headers: { 'Cache-Control': 'no-store' } });
 }

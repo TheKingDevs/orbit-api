@@ -147,6 +147,8 @@ class StorageService {
   ): Promise<StoredMedia> {
     this.ensureDirectory();
     const safeUrl = validateSafeUrl(sourceUrl);
+    const maxBytes = this.getMaxDownloadBytes(mediaType);
+    const contentLength = 0;
 
     const response = await fetchSafeUrl(safeUrl, {
       headers: {
@@ -158,7 +160,14 @@ class StorageService {
     });
 
     if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined);
       throw new Error(`Falha ao baixar a mídia (HTTP ${response.status}).`);
+    }
+
+    const declaredLength = Number(response.headers.get('content-length') || 0);
+    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new Error(`A mídia excede o limite permitido de ${Math.floor(maxBytes / (1024 * 1024))} MB.`);
     }
 
     const contentType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
@@ -166,7 +175,7 @@ class StorageService {
       ['video', 'audio'].includes(mediaType) &&
       (contentType.startsWith('text/') || contentType === 'application/json' || contentType.endsWith('+json'))
     ) {
-      await response.body?.cancel();
+      await response.body?.cancel().catch(() => undefined);
       throw new Error(`A origem retornou ${contentType || 'conteúdo inválido'} em vez de um arquivo de mídia.`);
     }
     const extension = this.pickExtension(suggestedExt, contentType, safeUrl, mediaType);
@@ -174,7 +183,13 @@ class StorageService {
     const filename = `${id}.${extension}`;
     const filePath = join(this.directory, filename);
 
-    await Bun.write(filePath, response);
+    try {
+      await this.writeResponseToFile(response, filePath, maxBytes);
+    } catch (error) {
+      this.remove(filePath);
+      throw error;
+    }
+
     this.scheduleCleanup(filePath);
 
     return {
@@ -183,6 +198,46 @@ class StorageService {
       extension,
       mediaType: this.mediaTypeFromExtension(extension, mediaType)
     };
+  }
+
+  private getMaxDownloadBytes(mediaType: MediaType): number {
+    const fallback = mediaType === 'image' || mediaType === 'gif' ? 20 * 1024 * 1024 : 100 * 1024 * 1024;
+    const envName = mediaType === 'image' || mediaType === 'gif' ? 'MAX_IMAGE_DOWNLOAD_BYTES' : 'MAX_MEDIA_DOWNLOAD_BYTES';
+    const raw = Number(process.env[envName] || fallback);
+    return Number.isFinite(raw) && raw > 1024 ? Math.floor(raw) : fallback;
+  }
+
+  private async writeResponseToFile(response: Response, filePath: string, maxBytes: number): Promise<void> {
+    if (!response.body) {
+      const buffer = new Uint8Array(await response.arrayBuffer());
+      if (buffer.byteLength > maxBytes) {
+        throw new Error(`A mídia excede o limite permitido de ${Math.floor(maxBytes / (1024 * 1024))} MB.`);
+      }
+      await Bun.write(filePath, buffer);
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const writer = Bun.file(filePath).writer();
+    let total = 0;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value) continue;
+        total += value.byteLength;
+        if (total > maxBytes) {
+          await reader.cancel().catch(() => undefined);
+          throw new Error(`A mídia excede o limite permitido de ${Math.floor(maxBytes / (1024 * 1024))} MB.`);
+        }
+        writer.write(value);
+      }
+      await writer.end();
+    } catch (error) {
+      try { await writer.end(); } catch { /* ignore */ }
+      throw error;
+    }
   }
 
   private pickExtension(suggestedExt: string | undefined, contentType: string, sourceUrl: string, mediaType: MediaType): string {

@@ -2,11 +2,15 @@ import { sessionAuthMiddleware } from '@middlewares/authMiddleware';
 import { BASIC_MONTHLY_LIMIT, db, FREE_DAILY_LIMIT } from '@utils/db.util';
 import { ValidatorUtil } from '@utils/validator.util';
 import { User } from '@models/User';
-import { ForbiddenError } from '@errors/index';
+import { ForbiddenError, InvalidParameterError } from '@errors/index';
 import { addOneCalendarMonth } from '@utils/plan.util';
 
 export async function userManagerRoute(req: Request): Promise<Response> {
   const adminUser = sessionAuthMiddleware(req, ['admin', 'owner']);
+
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    throw new InvalidParameterError('Método não suportado. Use GET ou POST.');
+  }
 
   if (req.method === 'POST') {
     const body = await req.json().catch(() => ({}));
@@ -47,7 +51,7 @@ export async function userManagerRoute(req: Request): Promise<Response> {
       success: true,
       message: 'Novo usuário criado com sucesso!',
       user: newUser
-    }, { status: 201 });
+    }, { status: 201, headers: { 'Cache-Control': 'no-store' } });
   }
 
   const users = db.getAllUsers().map(rawUser => {

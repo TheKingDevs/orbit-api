@@ -165,12 +165,22 @@ function requestPinned(url: URL, init: RequestInit, addresses: LookupAddress[]):
       if (options?.all) callback(null, addresses);
       else callback(null, addresses[0].address, addresses[0].family);
     };
+    let settled = false;
+    const rejectOnce = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      reject(error instanceof Error ? error : new Error(String(error)));
+    };
     const request = requestFn(url, {
       method: init.method,
       headers: Object.fromEntries(headers.entries()),
       lookup: pinnedLookup as never,
       signal: init.signal ?? undefined
     }, upstream => {
+      if (settled) {
+        upstream.resume();
+        return;
+      }
       const responseHeaders = new Headers();
       for (let index = 0; index < upstream.rawHeaders.length; index += 2) {
         const name = upstream.rawHeaders[index];
@@ -179,14 +189,22 @@ function requestPinned(url: URL, init: RequestInit, addresses: LookupAddress[]):
         }
       }
       const noBody = init.method === 'HEAD' || [204, 205, 304].includes(upstream.statusCode ?? 0);
+      upstream.on('error', (err) => {
+        if (!settled) rejectOnce(err);
+      });
       const body = noBody ? null : Readable.toWeb(upstream) as unknown as ReadableStream<Uint8Array>;
+      settled = true;
       resolve(new Response(body, {
         status: upstream.statusCode ?? 502,
         statusText: upstream.statusMessage,
         headers: responseHeaders
       }));
     });
-    request.once('error', reject);
+    request.once('error', rejectOnce);
+    request.once('close', () => {
+      // If closed before response and not settled, reject to avoid hanging.
+      if (!settled) rejectOnce(new Error('Conexão encerrada antes da resposta.'));
+    });
     request.end();
   });
 }

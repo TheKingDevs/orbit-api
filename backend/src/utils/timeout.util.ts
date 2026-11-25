@@ -1,11 +1,11 @@
-// O Spotify via btch-downloader já levou ~17s; 25s evita falsos 504 sem
-// manter conexões penduradas por tempo demais.
-const DEFAULT_PROVIDER_TIMEOUT_MS = 25_000;
-const DEFAULT_TRANSCRIPTION_TIMEOUT_MS = 90_000;
-const DEFAULT_TRANSCRIPTION_PROCESS_TIMEOUT_MS = 75_000;
-const DEFAULT_HORDE_TIMEOUT_MS = 15_000;
-const DEFAULT_MEDIA_FETCH_TIMEOUT_MS = 15_000;
-const DEFAULT_LOCAL_PROCESS_TIMEOUT_MS = 30_000;
+// Defaults balance responsiveness with external provider variability.
+// All values remain configurable via env vars for production tuning.
+const DEFAULT_PROVIDER_TIMEOUT_MS = 10_000;
+const DEFAULT_TRANSCRIPTION_TIMEOUT_MS = 60_000;
+const DEFAULT_TRANSCRIPTION_PROCESS_TIMEOUT_MS = 45_000;
+const DEFAULT_HORDE_TIMEOUT_MS = 10_000;
+const DEFAULT_MEDIA_FETCH_TIMEOUT_MS = 10_000;
+const DEFAULT_LOCAL_PROCESS_TIMEOUT_MS = 20_000;
 
 function readTimeout(name: string, fallback: number, minimum: number = 100): number {
   const raw = process.env[name];

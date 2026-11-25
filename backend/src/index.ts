@@ -36,6 +36,15 @@ function redirectToError(req: Request, statusCode: number): Response | null {
 }
 
 async function start(): Promise<void> {
+  process.on('unhandledRejection', (reason) => {
+    const message = reason instanceof Error ? reason.message : String(reason);
+    Logger.error(`Unhandled rejection: ${message}`, 'Process');
+  });
+  process.on('uncaughtException', (error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    Logger.error(`Uncaught exception: ${message}`, 'Process');
+  });
+
   await connectDatabase();
   await db.init();
   await billingService.init();
@@ -49,7 +58,8 @@ async function start(): Promise<void> {
       const url = new URL(req.url);
       if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/storage/')) {
         const mayMergeFullVideo = url.pathname === '/api/download/play_video' || url.pathname === '/api/download/ytdl_video';
-        server.timeout(req, mayMergeFullVideo ? 0 : 255);
+        const heavyRoute = /\/(transcribe|audio\/summarize|ai\/summarize|ai\/ocr|ai\/shazam|sticker\/|download\/)/.test(url.pathname);
+        server.timeout(req, mayMergeFullVideo ? 0 : heavyRoute ? 120 : 30);
       }
 
       const corsResponse = handleCorsRequest(req);

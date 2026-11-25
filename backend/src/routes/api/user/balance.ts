@@ -28,5 +28,5 @@ export async function userBalanceRoute(req: Request): Promise<Response> {
     remainingRequests: remaining,
     isSuspended: user.isSuspended || false,
     lastResetDate: user.lastResetDate
-  }, { status: 200 });
+  }, { status: 200, headers: { 'Cache-Control': 'no-store' } });
 }

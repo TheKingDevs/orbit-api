@@ -17,6 +17,9 @@ function publicErrorMessage(error: AppError): string {
 }
 
 export function handleRouteError(error: unknown, path: string = ''): Response {
+  const noStorePath = path.startsWith('/api/') || path.startsWith('/storage/');
+  const baseHeaders: Record<string, string> = noStorePath ? { 'Cache-Control': 'no-store' } : {};
+
   if (error instanceof InvalidParameterError) {
     Logger.warning(`Parâmetros inválidos em ${path}: ${error.message}`, 'InvalidParameterError');
     return Response.json(
@@ -26,7 +29,7 @@ export function handleRouteError(error: unknown, path: string = ''): Response {
         message: sanitizeErrorMessage(error.message),
         details: error.details
       },
-      { status: error.statusCode }
+      { status: error.statusCode, headers: baseHeaders }
     );
   }
 
@@ -34,9 +37,10 @@ export function handleRouteError(error: unknown, path: string = ''): Response {
     if (error.statusCode !== 429) {
       Logger.warning(`Erro ${error.statusCode}, Página "${path}" - ${error.message}`, error.errorType);
     }
-    const headers = error.statusCode === 429 && 'retryAfterSeconds' in error
-      ? { 'Retry-After': String(error.retryAfterSeconds) }
-      : undefined;
+    const headers: Record<string, string> = { ...baseHeaders };
+    if (error.statusCode === 429 && 'retryAfterSeconds' in error) {
+      headers['Retry-After'] = String(error.retryAfterSeconds);
+    }
     return Response.json(
       {
         success: false,
@@ -54,6 +58,6 @@ export function handleRouteError(error: unknown, path: string = ''): Response {
       errorType: 'DangerError',
       message: 'Erro interno inesperado no servidor.'
     },
-    { status: 500 }
+    { status: 500, headers: baseHeaders }
   );
 }

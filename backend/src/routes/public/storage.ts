@@ -1,6 +1,7 @@
 import { DangerError, NotFoundError } from '@errors/index';
 import { authMiddleware } from '@middlewares/authMiddleware';
 import { storageService } from '@services/storage.service';
+import { mediaFetchTimeoutMs } from '@utils/timeout.util';
 import { fetchSafeUrl } from '@utils/urlSecurity.util';
 
 function parseRange(range: string, size: number): { start: number; end: number } | undefined {
@@ -58,7 +59,8 @@ export async function storageRoute(req: Request, url: URL): Promise<Response> {
           Origin: 'https://www.tikwm.com'
         } : {}),
         ...(range ? { Range: range } : {})
-      }
+      },
+      signal: AbortSignal.timeout(mediaFetchTimeoutMs())
     }).catch(() => null);
 
     if (!upstream) throw new DangerError('A origem da mídia encerrou a conexão. Tente novamente.', 502);
