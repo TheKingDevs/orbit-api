@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { apiFetch, ApiError } from "@lib/auth/http";
 import { Icon } from "@components/dashboard/icons";
 import type { ApiDoc, DocPreview } from "@lib/docs";
@@ -944,6 +944,41 @@ function SoundCloudResult({ data }: { data: unknown }) {
   );
 }
 
+function toApiPath(url: string): string {
+  try {
+    const parsed = new URL(url, window.location.origin);
+    if (parsed.origin === window.location.origin) return `${parsed.pathname}${parsed.search}`;
+  } catch {}
+  return url;
+}
+
+function useAuthedMediaUrl(url: string | null): { src: string | null; loading: boolean; error: string | null } {
+  const [state, setState] = useState<{ src: string | null; loading: boolean; error: string | null }>({ src: null, loading: Boolean(url), error: null });
+
+  useEffect(() => {
+    if (!url) { setState({ src: null, loading: false, error: null }); return; }
+    let active = true;
+    let objectUrl: string | null = null;
+    setState({ src: null, loading: true, error: null });
+
+    apiFetch<{ blobUrl: string }>(toApiPath(url))
+      .then((res) => {
+        if (!active) { if (res?.blobUrl) URL.revokeObjectURL(res.blobUrl); return; }
+        objectUrl = res.blobUrl;
+        setState({ src: res.blobUrl, loading: false, error: null });
+      })
+      .catch((err) => {
+        if (!active) return;
+        const message = err instanceof ApiError ? err.message : "Não foi possível carregar a mídia.";
+        setState({ src: null, loading: false, error: message });
+      });
+
+    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [url]);
+
+  return state;
+}
+
 function MediaResult({ data }: { data: unknown }) {
   const downloadUrl = getText(data, "downloadUrl") || getText(data, "url");
   const mediaType = getText(data, "mediaType");
@@ -951,19 +986,22 @@ function MediaResult({ data }: { data: unknown }) {
   const author = getText(data, "metadata", "author") ?? getText(data, "author");
   const thumbnail = getText(data, "metadata", "thumbnail") || getText(data, "thumbnail");
 
+  const isAudio = mediaType === "audio" || /\.(mp3|m4a|ogg|opus)($|\?)/i.test(downloadUrl || "");
+  const isVideo = mediaType === "video" || /\.(mp4|webm|mkv|mov)($|\?)/i.test(downloadUrl || "");
+  const isImage = !isAudio && !isVideo;
+  const media = useAuthedMediaUrl(downloadUrl);
+
   if (!downloadUrl) {
     return <EmptyResult message="Não foi possível resolver o link de download." />;
   }
 
-  const isAudio = mediaType === "audio" || /\.(mp3|m4a|ogg|opus)($|\?)/i.test(downloadUrl);
-  const isVideo = mediaType === "video" || /\.(mp4|webm|mkv|mov)($|\?)/i.test(downloadUrl);
-  const isImage = !isAudio && !isVideo;
+  const src = media.src || undefined;
 
   return (
     <div className="overflow-hidden rounded-xl border border-white/[0.07] bg-[#151517] p-4 flex flex-col sm:flex-row gap-4">
       {isImage ? (
         <div className="relative aspect-square max-h-[360px] w-full shrink-0 overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.03]">
-          <RemoteImage src={downloadUrl} alt={title} />
+          {src ? <img src={src} alt={title} className="h-full w-full object-contain" /> : <div className="flex h-full items-center justify-center text-zinc-500 text-sm">{media.loading ? "Carregando..." : media.error || "Erro"}</div>}
         </div>
       ) : (
         <div className="relative h-44 w-full sm:h-36 sm:w-36 shrink-0 overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.03]">
@@ -990,24 +1028,27 @@ function MediaResult({ data }: { data: unknown }) {
         </div>
         <h3 className="mt-1 text-base sm:text-lg font-semibold text-white">{title}</h3>
 
-        {isAudio ? (
-          <audio controls preload="metadata" src={downloadUrl} className="mt-4 h-9 w-full">
+        {media.loading && <p className="mt-3 text-xs text-zinc-500">Carregando mídia...</p>}
+        {media.error && <p className="mt-3 text-xs text-red-400">{media.error}</p>}
+
+        {isAudio && src ? (
+          <audio controls preload="metadata" src={src} className="mt-4 h-9 w-full">
             Seu navegador não suporta a reprodução de áudio.
           </audio>
-        ) : isVideo ? (
-          <video controls preload="metadata" src={downloadUrl} className="mt-4 max-h-[360px] w-full rounded-lg bg-black" />
+        ) : isVideo && src ? (
+          <video controls preload="metadata" src={src} className="mt-4 max-h-[360px] w-full rounded-lg bg-black" />
         ) : null}
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <a
-            href={downloadUrl}
-            target="_blank"
-            rel="noreferrer"
-            download
-            className="rounded-lg border border-violet-400/20 bg-violet-400/[0.08] px-3 py-1.5 text-xs font-medium text-violet-200 transition hover:bg-violet-400/15 hover:text-white"
-          >
-            Baixar {isAudio ? "Áudio" : isVideo ? "Vídeo" : "Imagem"}
-          </a>
+          {src && (
+            <a
+              href={src}
+              download={`${title}.${isAudio ? "mp3" : isVideo ? "mp4" : "jpg"}`}
+              className="rounded-lg border border-violet-400/20 bg-violet-400/[0.08] px-3 py-1.5 text-xs font-medium text-violet-200 transition hover:bg-violet-400/15 hover:text-white"
+            >
+              Baixar {isAudio ? "Áudio" : isVideo ? "Vídeo" : "Imagem"}
+            </a>
+          )}
           {thumbnail && (
             <a
               href={thumbnail}
