@@ -6,6 +6,7 @@ import { SdkResponse } from '@apptypes/devworldbr.type';
 import { validateSafeUrl, TrustedPlatform } from '@utils/urlSecurity.util';
 import { firstSuccessful } from '@utils/async.util';
 import { providerTimeoutMs } from '@utils/timeout.util';
+import { youtubeService } from '@services/youtube.service';
 
 const PROMO_KEYS = ['criador', 'whatsapp'] as const;
 const DEVWORLD_API_BASE = (process.env.DEVWORLDBR_API_BASE || 'https://api.devworldbr.site/api').replace(/\/+$/, '');
@@ -123,13 +124,27 @@ class DevWorldBRService implements IDevWorldBRService {
     return execute('gemini', () => dwbr.gemini(text));
   }
 
-  ytSearch(query: string | undefined | null): Promise<SdkResponse> {
+  async ytSearch(query: string | undefined | null): Promise<SdkResponse> {
     const text = requireText(query, 'query');
+    try {
+      const direct = await youtubeService.search(text);
+      if (direct.total > 0) return direct as unknown as SdkResponse;
+      Logger.warning('Busca direta YouTube retornou 0 resultados, usando fallback v1.', 'DevWorldBR');
+    } catch (err: any) {
+      Logger.warning(`Busca direta YouTube indisponível, usando fallback v1: ${err?.message || err}`, 'DevWorldBR');
+    }
     return execute('ytsearch', () => dwbr.ytSearch(text));
   }
 
-  ytSearchV2(query: string | undefined | null): Promise<SdkResponse> {
+  async ytSearchV2(query: string | undefined | null): Promise<SdkResponse> {
     const text = requireText(query, 'query');
+    try {
+      const direct = await youtubeService.search(text);
+      if (direct.total > 0) return direct as unknown as SdkResponse;
+      Logger.warning('Busca direta YouTube retornou 0 resultados, usando fallback v2.', 'DevWorldBR');
+    } catch (err: any) {
+      Logger.warning(`Busca direta YouTube v2 indisponível, usando fallback v2: ${err?.message || err}`, 'DevWorldBR');
+    }
     return execute('ytsearch_v2', () => dwbr.ytSearch2(text));
   }
 
